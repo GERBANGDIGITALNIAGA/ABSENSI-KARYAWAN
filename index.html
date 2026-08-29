@@ -196,6 +196,7 @@
     <div class="cam-wrap"><video id="videoAbsen" autoplay muted playsinline></video><canvas id="canvasAbsen" class="hidden"></canvas><div class="scan-ring wait" id="ringAbsen"></div></div>
     <div class="status-list">
       <div class="status-item warn" id="statLokasi">Lokasi &middot; menunggu…</div>
+      <div class="status-item warn" id="statLiveness">Verifikasi hidup &middot; kedipkan mata…</div>
       <div class="status-item warn" id="statWajah">Wajah &middot; menunggu…</div>
     </div>
     <button class="btn-primary" id="btnAbsen" disabled>Ambil &amp; Kirim Absen</button>
@@ -218,12 +219,14 @@
    KONFIGURASI — ISI BAGIAN INI SEBELUM DIPAKAI
    ========================================================= */
 const CONFIG = {
-      GOOGLE_CLIENT_ID: '939677631809-7vg62e6fq9jbga5hiru4bcagv2s89ar1.apps.googleusercontent.com',
-      APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzOS85h8vD9wnJC2BFhHB-t46Ghe9xcgavQiuml-6Amt3Emu5PCAZ6stuYtYz_zCa4_/exec',
-      OFFICE_LAT: -7.7387746454571245,
-      OFFICE_LNG: 110.43456291086345,
+  GOOGLE_CLIENT_ID: '939677631809-7vg62e6fq9jbga5hiru4bcagv2s89ar1.apps.googleusercontent.com',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzOS85h8vD9wnJC2BFhHB-t46Ghe9xcgavQiuml-6Amt3Emu5PCAZ6stuYtYz_zCa4_/exec',
+  OFFICE_LAT: -7.7387746454571245,
+  OFFICE_LNG: 110.43456291086345,
   MAX_DISTANCE_M: 50,
   FACE_MATCH_THRESHOLD: 0.5, // makin kecil = makin ketat. 0.5 nilai umum yang aman.
+  EAR_CLOSE: 0.22, // di bawah angka ini dianggap mata tertutup
+  EAR_OPEN: 0.28,   // di atas angka ini dianggap mata terbuka lagi (jadi 1 kedipan terhitung)
   MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
 };
 
@@ -332,6 +335,42 @@ async function startCamera(videoEl){
 }
 
 /* =========================================================
+   VERIFIKASI HIDUP (LIVENESS) — deteksi kedipan mata
+   Supaya foto/video wajah orang lain yang disodorkan ke kamera
+   (yang tidak bisa berkedip secara alami) otomatis gagal.
+   ========================================================= */
+function eyeAspectRatio(eye){
+  const dist = (a,b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const vertikal = dist(eye[1], eye[5]) + dist(eye[2], eye[4]);
+  const horizontal = dist(eye[0], eye[3]);
+  return vertikal / (2 * horizontal);
+}
+
+// Memantau video terus-menerus sampai terdeteksi 1 kedipan mata utuh
+// (mata terbuka -> tertutup -> terbuka lagi). Memanggil onBlinkDetected() sekali saat terdeteksi.
+function startBlinkWatcher(videoEl, onBlinkDetected){
+  let mataPernahTertutup = false;
+  const interval = setInterval(async () => {
+    const det = await faceapi
+      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks();
+    if (!det) return;
+
+    const earKiri = eyeAspectRatio(det.landmarks.getLeftEye());
+    const earKanan = eyeAspectRatio(det.landmarks.getRightEye());
+    const ear = (earKiri + earKanan) / 2;
+
+    if (ear < CONFIG.EAR_CLOSE){
+      mataPernahTertutup = true;
+    } else if (ear > CONFIG.EAR_OPEN && mataPernahTertutup){
+      clearInterval(interval);
+      onBlinkDetected();
+    }
+  }, 180);
+  return interval;
+}
+
+/* =========================================================
    REGISTRASI WAJAH (SEKALI DI AWAL)
    ========================================================= */
 async function startRegistrasi(){
@@ -393,22 +432,36 @@ async function startAbsen(){
   const ring = document.getElementById('ringAbsen');
   const btn = document.getElementById('btnAbsen');
   const statLokasi = document.getElementById('statLokasi');
+  const statLiveness = document.getElementById('statLiveness');
   const statWajah = document.getElementById('statWajah');
 
-  let lokasiOk = false, koordinat = null, jarak = null;
+  let lokasiOk = false, koordinat = null, jarak = null, lokasiSiap = false, livenessOk = false;
+
+  function cekTombolSiap(){
+    btn.disabled = !(lokasiSiap && livenessOk);
+  }
 
   await startCamera(video);
   await loadModelsOnce();
   statWajah.textContent = 'Wajah · siap dideteksi';
   ring.className = 'scan-ring wait';
 
+  // Mulai pantau kedipan mata sesaat setelah kamera & model siap.
+  startBlinkWatcher(video, () => {
+    livenessOk = true;
+    statLiveness.textContent = 'Verifikasi hidup · terkonfirmasi ✓';
+    statLiveness.className = 'status-item ok';
+    cekTombolSiap();
+  });
+
   navigator.geolocation.getCurrentPosition((pos) => {
     koordinat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     jarak = Math.round(haversine(koordinat.lat, koordinat.lng, CONFIG.OFFICE_LAT, CONFIG.OFFICE_LNG));
     lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
+    lokasiSiap = true;
     statLokasi.textContent = `Lokasi · ${jarak} m dari kantor`;
     statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
-    btn.disabled = false;
+    cekTombolSiap();
   }, (err) => {
     statLokasi.textContent = 'Lokasi · gagal diakses (izinkan GPS)';
     statLokasi.className = 'status-item bad';
