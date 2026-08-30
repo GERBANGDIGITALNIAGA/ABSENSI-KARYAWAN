@@ -225,11 +225,11 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: '939677631809-7vg62e6fq9jbga5hiru4bcagv2s89ar1.apps.googleusercontent.com',
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzOS85h8vD9wnJC2BFhHB-t46Ghe9xcgavQiuml-6Amt3Emu5PCAZ6stuYtYz_zCa4_/exec',
   OFFICES: [
-    { nama: 'Kantor 1', lat: -7.7387746454571245, lng: 110.43456291086345 },
-    { nama: 'Kantor 2', lat: -6.339226545644071, lng: 106.7001088 }
+    { nama: 'Jogja', lat: -7.7387746454571245, lng: 110.43456291086345 },
+    { nama: 'Tangerang', lat: -6.339226545644071, lng: 106.7001088 }
   ],
   MAX_DISTANCE_M: 50,
-  FACE_MATCH_THRESHOLD: 0.5, // makin kecil = makin ketat. 0.5 nilai umum yang aman.
+  FACE_MATCH_THRESHOLD: 0.4, // diperketat dari 0.5 supaya lebih sulit tertukar orang lain
   EAR_CLOSE: 0.22, // di bawah angka ini dianggap mata tertutup
   EAR_OPEN: 0.28,   // di atas angka ini dianggap mata terbuka lagi (jadi 1 kedipan terhitung)
   MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
