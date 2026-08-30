@@ -229,7 +229,7 @@ const CONFIG = {
     { nama: 'Tangerang', lat: -6.339226545644071, lng: 106.7001088 }
   ],
   MAX_DISTANCE_M: 50,
-  FACE_MATCH_THRESHOLD: 0.4, // diperketat dari 0.5 supaya lebih sulit tertukar orang lain
+  FACE_MATCH_THRESHOLD: 0.55, // disesuaikan berdasarkan data nyata — 0.4 kemarin terlalu ketat
   EAR_CLOSE: 0.22, // di bawah angka ini dianggap mata tertutup
   EAR_OPEN: 0.28,   // di atas angka ini dianggap mata terbuka lagi (jadi 1 kedipan terhitung)
   MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
@@ -327,7 +327,7 @@ async function loadModelsOnce(){
 
 async function getDescriptorFromVideo(videoEl){
   const det = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions())
+    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
     .withFaceLandmarks()
     .withFaceDescriptor();
   return det ? det.descriptor : null;
@@ -357,7 +357,7 @@ function startBlinkWatcher(videoEl, onBlinkDetected){
   let mataPernahTertutup = false;
   const interval = setInterval(async () => {
     const det = await faceapi
-      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions())
+      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
       .withFaceLandmarks();
     if (!det) return;
 
@@ -512,7 +512,7 @@ async function startAbsen(){
       lat: koordinat ? koordinat.lat : '',
       lng: koordinat ? koordinat.lng : '',
       jarak: jarak,
-      skorWajah: jarakWajah !== null ? jarakWajah.toFixed(3) : '',
+      skorWajah: jarakWajah !== null ? Number(jarakWajah.toFixed(3)) : '',
       status: diterima ? 'Diterima' : 'Ditolak',
       keterangan: keterangan.join('; '),
       foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
