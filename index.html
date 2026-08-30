@@ -199,7 +199,10 @@
       <div class="status-item warn" id="statLiveness">Verifikasi hidup &middot; kedipkan mata…</div>
       <div class="status-item warn" id="statWajah">Wajah &middot; menunggu…</div>
     </div>
-    <button class="btn-primary" id="btnAbsen" disabled>Ambil &amp; Kirim Absen</button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-primary" id="btnMasuk" disabled>Absen Masuk</button>
+      <button class="btn-primary" id="btnPulang" disabled>Absen Pulang</button>
+    </div>
   </div>
 
   <!-- STEP 4: HASIL -->
@@ -221,8 +224,10 @@
 const CONFIG = {
   GOOGLE_CLIENT_ID: '939677631809-7vg62e6fq9jbga5hiru4bcagv2s89ar1.apps.googleusercontent.com',
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzOS85h8vD9wnJC2BFhHB-t46Ghe9xcgavQiuml-6Amt3Emu5PCAZ6stuYtYz_zCa4_/exec',
-  OFFICE_LAT: -7.7387746454571245,
-  OFFICE_LNG: 110.43456291086345,
+  OFFICES: [
+    { nama: 'Kantor 1', lat: -7.7387746454571245, lng: 110.43456291086345 },
+    { nama: 'Kantor 2', lat: 0, lng: 0 } // GANTI dengan koordinat kantor kedua nanti
+  ],
   MAX_DISTANCE_M: 50,
   FACE_MATCH_THRESHOLD: 0.5, // makin kecil = makin ketat. 0.5 nilai umum yang aman.
   EAR_CLOSE: 0.22, // di bawah angka ini dianggap mata tertutup
@@ -430,15 +435,18 @@ async function startAbsen(){
 
   const video = document.getElementById('videoAbsen');
   const ring = document.getElementById('ringAbsen');
-  const btn = document.getElementById('btnAbsen');
+  const btnMasuk = document.getElementById('btnMasuk');
+  const btnPulang = document.getElementById('btnPulang');
   const statLokasi = document.getElementById('statLokasi');
   const statLiveness = document.getElementById('statLiveness');
   const statWajah = document.getElementById('statWajah');
 
-  let lokasiOk = false, koordinat = null, jarak = null, lokasiSiap = false, livenessOk = false;
+  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = false;
 
   function cekTombolSiap(){
-    btn.disabled = !(lokasiSiap && livenessOk);
+    const siap = lokasiSiap && livenessOk;
+    btnMasuk.disabled = !siap;
+    btnPulang.disabled = !siap;
   }
 
   await startCamera(video);
@@ -456,10 +464,12 @@ async function startAbsen(){
 
   navigator.geolocation.getCurrentPosition((pos) => {
     koordinat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    jarak = Math.round(haversine(koordinat.lat, koordinat.lng, CONFIG.OFFICE_LAT, CONFIG.OFFICE_LNG));
+    const t = kantorTerdekat(koordinat.lat, koordinat.lng);
+    jarak = t.jarak;
+    namaKantor = t.nama;
     lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
     lokasiSiap = true;
-    statLokasi.textContent = `Lokasi · ${jarak} m dari kantor`;
+    statLokasi.textContent = `Lokasi · ${jarak} m dari ${namaKantor}`;
     statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
     cekTombolSiap();
   }, (err) => {
@@ -467,8 +477,9 @@ async function startAbsen(){
     statLokasi.className = 'status-item bad';
   }, { enableHighAccuracy: true, timeout: 15000 });
 
-  btn.onclick = async () => {
-    btn.disabled = true;
+  async function kirimAbsen(jenis){
+    btnMasuk.disabled = true;
+    btnPulang.disabled = true;
     statWajah.textContent = 'Wajah · mendeteksi…';
 
     const descriptor = await getDescriptorFromVideo(video);
@@ -490,12 +501,14 @@ async function startAbsen(){
     const diterima = wajahOk && lokasiOk;
     const keterangan = [];
     if (!wajahOk) keterangan.push('wajah tidak cocok dengan data terdaftar');
-    if (!lokasiOk) keterangan.push(`jarak ${jarak ?? '?'} m melebihi batas ${CONFIG.MAX_DISTANCE_M} m`);
+    if (!lokasiOk) keterangan.push(`jarak ${jarak ?? '?'} m dari ${namaKantor} melebihi batas ${CONFIG.MAX_DISTANCE_M} m`);
 
     await postToScript({
       action: 'absen',
       email: currentUser.email,
       nama: currentUser.nama,
+      jenis: jenis,
+      kantor: namaKantor,
       lat: koordinat ? koordinat.lat : '',
       lng: koordinat ? koordinat.lng : '',
       jarak: jarak,
@@ -504,11 +517,14 @@ async function startAbsen(){
       keterangan: keterangan.join('; ')
     });
 
-    tampilkanHasil(diterima, jarak, wajahOk, keterangan);
-  };
+    tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor);
+  }
+
+  btnMasuk.onclick = () => kirimAbsen('Masuk');
+  btnPulang.onclick = () => kirimAbsen('Pulang');
 }
 
-function tampilkanHasil(diterima, jarak, wajahOk, keterangan){
+function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor){
   show('cardAbsen', false);
   show('cardHasil', true);
   const icon = document.getElementById('hasilIcon');
@@ -518,13 +534,13 @@ function tampilkanHasil(diterima, jarak, wajahOk, keterangan){
 
   icon.className = 'result-icon ' + (diterima ? 'ok' : 'bad');
   icon.textContent = diterima ? '✓' : '✕';
-  title.textContent = diterima ? 'Absen berhasil' : 'Absen ditolak';
+  title.textContent = diterima ? `Absen ${jenis} berhasil` : `Absen ${jenis} ditolak`;
   sub.textContent = diterima
     ? 'Kehadiran kamu sudah tercatat di sistem.'
     : keterangan.join(', ');
 
   detail.innerHTML = `
-    <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke kantor · ${jarak ?? '-'} m</div>
+    <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
     <div class="status-item ${wajahOk ? 'ok' : 'bad'}">Kecocokan wajah · ${wajahOk ? 'cocok' : 'tidak cocok'}</div>
   `;
 }
@@ -539,6 +555,16 @@ function haversine(lat1, lon1, lat2, lon2){
   const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Mencari kantor terdekat dari daftar CONFIG.OFFICES
+function kantorTerdekat(lat, lng){
+  let hasil = null;
+  CONFIG.OFFICES.forEach(o => {
+    const d = haversine(lat, lng, o.lat, o.lng);
+    if (!hasil || d < hasil.jarak) hasil = { nama: o.nama, jarak: Math.round(d) };
+  });
+  return hasil;
 }
 
 function userRowHtml(u){
