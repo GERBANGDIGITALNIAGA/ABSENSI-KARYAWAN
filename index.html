@@ -215,6 +215,7 @@
   </div>
 
   <p class="foot-note">Data absen dikirim langsung ke Google Sheets kantor secara realtime.</p>
+  <p class="foot-note" id="buildInfo"></p>
 </div>
 
 <script>
@@ -262,6 +263,8 @@ function checkConfig(){
    ========================================================= */
 window.onload = () => {
   checkConfig();
+  const daftarKantor = CONFIG.OFFICES.map(o => `${o.nama} (${o.lat.toFixed(5)}, ${o.lng.toFixed(5)})`).join(' · ');
+  document.getElementById('buildInfo').textContent = 'Versi 2026-08-30-c · Kantor: ' + daftarKantor;
   loadModelsOnce(); // mulai unduh model dari sekarang, paralel dengan proses login (tidak perlu ditunggu)
   google.accounts.id.initialize({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
