@@ -514,7 +514,8 @@ async function startAbsen(){
       jarak: jarak,
       skorWajah: jarakWajah !== null ? jarakWajah.toFixed(3) : '',
       status: diterima ? 'Diterima' : 'Ditolak',
-      keterangan: keterangan.join('; ')
+      keterangan: keterangan.join('; '),
+      foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
     });
 
     tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor);
@@ -569,6 +570,17 @@ function kantorTerdekat(lat, lng){
 
 function userRowHtml(u){
   return `<img src="${u.foto}" referrerpolicy="no-referrer"><div><div class="name">${u.nama}</div><div class="email">${u.email}</div></div>`;
+}
+
+// Mengambil 1 frame video sebagai foto JPEG (base64, tanpa header data:...)
+function ambilFotoBase64(videoEl, canvasEl){
+  const maxLebar = 480;
+  const skala = Math.min(1, maxLebar / videoEl.videoWidth);
+  canvasEl.width = videoEl.videoWidth * skala;
+  canvasEl.height = videoEl.videoHeight * skala;
+  const ctx = canvasEl.getContext('2d');
+  ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+  return canvasEl.toDataURL('image/jpeg', 0.7).split(',')[1];
 }
 
 function show(id, visible){
