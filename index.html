@@ -281,7 +281,7 @@ function decodeJwt(token){
 
 async function handleCredentialResponse(response){
   const payload = decodeJwt(response.credential);
-  currentUser = { email: payload.email.toLowerCase().trim(), nama: payload.name, foto: payload.picture };
+  currentUser = { email: payload.email.toLowerCase().trim(), nama: payload.name, foto: payload.picture, idToken: response.credential };
 
   show('cardLogin', false);
   show('cardChecking', true);
@@ -298,7 +298,7 @@ async function handleCredentialResponse(response){
 
   employeeRecord = rec;
 
-  if (!rec.deskriptor){
+  if (!rec.hasDeskriptor){
     startRegistrasi();
   } else {
     startAbsen();
@@ -426,17 +426,16 @@ async function startRegistrasi(){
 
     const res = await postToScript({
       action: 'daftar',
-      email: currentUser.email,
-      nama: currentUser.nama,
+      idToken: currentUser.idToken,
       deskriptor: Array.from(descriptor)
     });
 
     if (res && res.ok){
       statusText.textContent = 'Berhasil didaftarkan. Melanjutkan ke absen…';
-      employeeRecord.deskriptor = Array.from(descriptor);
+      employeeRecord.hasDeskriptor = true;
       setTimeout(() => { show('cardDaftarWajah', false); startAbsen(); }, 900);
     } else {
-      statusText.textContent = 'Gagal menyimpan data. Coba lagi.';
+      statusText.textContent = (res && res.pesan) ? res.pesan : 'Gagal menyimpan data. Coba lagi.';
       btn.disabled = false;
     }
   };
@@ -531,42 +530,45 @@ async function startAbsen(){
     statWajah.textContent = 'Wajah · mendeteksi…';
 
     const descriptor = await getDescriptorFromVideo(video);
-    let wajahOk = false, jarakWajah = null;
 
     if (!descriptor){
-      statWajah.textContent = 'Wajah · tidak terdeteksi';
+      statWajah.textContent = 'Wajah · tidak terdeteksi, coba lagi';
       statWajah.className = 'status-item bad';
       ring.className = 'scan-ring bad';
-    } else {
-      const referensi = new Float32Array(employeeRecord.deskriptor);
-      jarakWajah = faceapi.euclideanDistance(descriptor, referensi);
-      wajahOk = jarakWajah < CONFIG.FACE_MATCH_THRESHOLD;
-      statWajah.textContent = wajahOk ? 'Wajah · cocok' : 'Wajah · tidak cocok';
-      statWajah.className = 'status-item ' + (wajahOk ? 'ok' : 'bad');
-      ring.className = 'scan-ring ' + (wajahOk ? 'ok' : 'bad');
+      btnMasuk.disabled = false;
+      btnPulang.disabled = false;
+      return;
     }
 
-    const diterima = wajahOk && lokasiOk;
-    const keterangan = [];
-    if (!wajahOk) keterangan.push('wajah tidak cocok dengan data terdaftar');
-    if (!lokasiOk) keterangan.push(`jarak ${jarak ?? '?'} m dari ${namaKantor} melebihi batas ${radiusKantor}m`);
+    statWajah.textContent = 'Wajah · mengirim untuk diverifikasi…';
+    ring.className = 'scan-ring wait';
 
-    await postToScript({
+    // PENTING: keputusan diterima/ditolak dihitung di SERVER (Apps Script),
+    // bukan di sini — supaya tidak bisa dipalsukan lewat browser/console.
+    const hasil = await postToScript({
       action: 'absen',
-      email: currentUser.email,
-      nama: employeeRecord.nama || currentUser.nama,
+      idToken: currentUser.idToken,
       jenis: jenis,
-      kantor: namaKantor,
       lat: koordinat ? koordinat.lat : '',
       lng: koordinat ? koordinat.lng : '',
-      jarak: jarak,
-      skorWajah: jarakWajah !== null ? Number(jarakWajah.toFixed(3)) : '',
-      status: diterima ? 'Diterima' : 'Ditolak',
-      keterangan: keterangan.join('; '),
+      deskriptorLive: Array.from(descriptor),
       foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
     });
 
-    tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, lokasiOk);
+    if (!hasil || !hasil.ok){
+      statWajah.textContent = 'Gagal terhubung ke server, coba lagi';
+      statWajah.className = 'status-item bad';
+      btnMasuk.disabled = false;
+      btnPulang.disabled = false;
+      return;
+    }
+
+    statWajah.textContent = hasil.wajahOk ? 'Wajah · cocok' : 'Wajah · tidak cocok';
+    statWajah.className = 'status-item ' + (hasil.wajahOk ? 'ok' : 'bad');
+    ring.className = 'scan-ring ' + (hasil.wajahOk ? 'ok' : 'bad');
+
+    const keterangan = hasil.keterangan ? hasil.keterangan.split('; ').filter(Boolean) : [];
+    tampilkanHasil(hasil.diterima, hasil.jarak, hasil.wajahOk, keterangan, jenis, hasil.namaKantor, hasil.lokasiOk);
   }
 
   btnMasuk.onclick = () => kirimAbsen('Masuk');
