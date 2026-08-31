@@ -227,7 +227,7 @@ const CONFIG = {
   OFFICES: [
     { nama: 'Jogja', lat: -7.7387746454571245, lng: 110.43456291086345 },
     { nama: 'Tangerang', lat: -6.339497, lng: 106.700075 },
-    { nama: 'Sunter', lat: -6.157460999640009, lng: 106.87843767054898 }
+    { nama: 'Sunter', lat: -6.157504332770026, lng: 106.87837736449718 }
   ],
   MAX_DISTANCE_M: 50,
   FACE_MATCH_THRESHOLD: 0.55, // disesuaikan berdasarkan data nyata — 0.4 kemarin terlalu ketat
@@ -484,8 +484,14 @@ async function startAbsen(){
     }
   }, 4000);
 
-  navigator.geolocation.getCurrentPosition((pos) => {
-    koordinat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  let watchId = null;
+  let waitTimeoutId = null;
+  let akurasiTerbaik = Infinity;
+
+  function kunciLokasi(){
+    if (lokasiSiap || !koordinat) return;
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    clearTimeout(waitTimeoutId);
     const t = kantorTerdekat(koordinat.lat, koordinat.lng);
     jarak = t.jarak;
     namaKantor = t.nama;
@@ -494,10 +500,29 @@ async function startAbsen(){
     statLokasi.textContent = `Lokasi · ${jarak} m dari ${namaKantor}`;
     statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
     cekTombolSiap();
+  }
+
+  statLokasi.textContent = 'Lokasi · mencari sinyal GPS…';
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    const akurasi = pos.coords.accuracy; // dalam meter
+    if (akurasi < akurasiTerbaik){
+      akurasiTerbaik = akurasi;
+      koordinat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    }
+    if (!lokasiSiap){
+      statLokasi.textContent = `Lokasi · menyempurnakan sinyal (±${Math.round(akurasi)}m)…`;
+    }
+    if (akurasi <= 30){
+      kunciLokasi(); // sinyal sudah cukup akurat, langsung pakai
+    }
   }, (err) => {
     statLokasi.textContent = 'Lokasi · gagal diakses (izinkan GPS)';
     statLokasi.className = 'status-item bad';
-  }, { enableHighAccuracy: true, timeout: 15000 });
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+
+  // Kalau 15 detik belum dapat sinyal setajam itu, pakai hasil terbaik yang ada
+  // supaya tidak menunggu selamanya (lebih baik daripada macet).
+  waitTimeoutId = setTimeout(kunciLokasi, 15000);
 
   async function kirimAbsen(jenis){
     btnMasuk.disabled = true;
