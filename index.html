@@ -227,7 +227,7 @@ const CONFIG = {
   OFFICES: [
     { nama: 'Jogja', lat: -7.7387746454571245, lng: 110.43456291086345 },
     { nama: 'Tangerang', lat: -6.339497, lng: 106.700075 },
-    { nama: 'Sunter', lat: -6.157504332770026, lng: 106.87837736449718 }
+    { nama: 'Sunter', lat: -6.1574775, lng: 106.8783568, radius: 200 } // radius dilonggarkan karena sinyal GPS di sini sering kurang akurat
   ],
   MAX_DISTANCE_M: 50,
   FACE_MATCH_THRESHOLD: 0.55, // disesuaikan berdasarkan data nyata — 0.4 kemarin terlalu ketat
@@ -457,7 +457,7 @@ async function startAbsen(){
   const statLiveness = document.getElementById('statLiveness');
   const statWajah = document.getElementById('statWajah');
 
-  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = false;
+  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, radiusKantor = CONFIG.MAX_DISTANCE_M, lokasiSiap = false, livenessOk = false;
 
   function cekTombolSiap(){
     const siap = lokasiSiap && livenessOk;
@@ -495,7 +495,8 @@ async function startAbsen(){
     const t = kantorTerdekat(koordinat.lat, koordinat.lng);
     jarak = t.jarak;
     namaKantor = t.nama;
-    lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
+    radiusKantor = t.radius;
+    lokasiOk = jarak <= t.radius;
     lokasiSiap = true;
     statLokasi.textContent = `Lokasi · ${jarak} m dari ${namaKantor}`;
     statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
@@ -548,7 +549,7 @@ async function startAbsen(){
     const diterima = wajahOk && lokasiOk;
     const keterangan = [];
     if (!wajahOk) keterangan.push('wajah tidak cocok dengan data terdaftar');
-    if (!lokasiOk) keterangan.push(`jarak ${jarak ?? '?'} m dari ${namaKantor} melebihi batas ${CONFIG.MAX_DISTANCE_M} m`);
+    if (!lokasiOk) keterangan.push(`jarak ${jarak ?? '?'} m dari ${namaKantor} melebihi batas ${radiusKantor}m`);
 
     await postToScript({
       action: 'absen',
@@ -565,14 +566,14 @@ async function startAbsen(){
       foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
     });
 
-    tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor);
+    tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, lokasiOk);
   }
 
   btnMasuk.onclick = () => kirimAbsen('Masuk');
   btnPulang.onclick = () => kirimAbsen('Pulang');
 }
 
-function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor){
+function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, lokasiOk){
   show('cardAbsen', false);
   show('cardHasil', true);
   const icon = document.getElementById('hasilIcon');
@@ -588,7 +589,7 @@ function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor)
     : keterangan.join(', ');
 
   detail.innerHTML = `
-    <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
+    <div class="status-item ${lokasiOk ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
     <div class="status-item ${wajahOk ? 'ok' : 'bad'}">Kecocokan wajah · ${wajahOk ? 'cocok' : 'tidak cocok'}</div>
   `;
 }
@@ -610,7 +611,7 @@ function kantorTerdekat(lat, lng){
   let hasil = null;
   CONFIG.OFFICES.forEach(o => {
     const d = haversine(lat, lng, o.lat, o.lng);
-    if (!hasil || d < hasil.jarak) hasil = { nama: o.nama, jarak: Math.round(d) };
+    if (!hasil || d < hasil.jarak) hasil = { nama: o.nama, jarak: Math.round(d), radius: o.radius || CONFIG.MAX_DISTANCE_M };
   });
   return hasil;
 }
