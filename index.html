@@ -332,10 +332,21 @@ function loadModelsOnce(){
 
 async function getDescriptorFromVideo(videoEl){
   const det = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.35 }))
+    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
     .withFaceLandmarks()
     .withFaceDescriptor();
   return det ? det.descriptor : null;
+}
+
+// Khusus untuk PENDAFTARAN wajah pertama kali (jadi data pembanding selamanya).
+// Lebih ketat & wajib yakin, supaya tidak menyimpan data yang buruk/tidak jelas.
+async function getDescriptorUntukDaftar(videoEl){
+  const det = await faceapi
+    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+  if (!det || det.detection.score < 0.6) return null; // deteksi kurang yakin, jangan disimpan
+  return det.descriptor;
 }
 
 async function startCamera(videoEl){
@@ -401,11 +412,11 @@ async function startRegistrasi(){
   btn.onclick = async () => {
     btn.disabled = true;
     statusText.textContent = 'Mendeteksi wajah…';
-    const descriptor = await getDescriptorFromVideo(video);
+    const descriptor = await getDescriptorUntukDaftar(video);
 
     if (!descriptor){
       ring.className = 'scan-ring bad';
-      statusText.textContent = 'Wajah tidak terdeteksi jelas. Coba lagi dengan pencahayaan lebih baik.';
+      statusText.textContent = 'Wajah belum terdeteksi dengan yakin. Lepas penutup kepala/hoodie, pastikan wajah penuh terlihat & cahaya terang dari depan, lalu coba lagi.';
       btn.disabled = false;
       return;
     }
