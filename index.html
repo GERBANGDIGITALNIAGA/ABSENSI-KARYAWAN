@@ -164,14 +164,59 @@
   tr:last-child td{border-bottom:0;}
   .admin-title{font-size:18px;margin:4px 0 14px;}
   @media(max-width:600px){.admin-toolbar{align-items:stretch;flex-direction:column}.admin-toolbar button{width:100%}.card{padding:20px}}
+
+  /* Tampilan 2026 — ringan, jelas, dan nyaman dipakai dari ponsel */
+  body{
+    background:#eef3f7;
+    padding:0 16px 48px;
+  }
+  body::before{
+    content:'';position:fixed;inset:0 0 auto;height:280px;z-index:-1;
+    background:linear-gradient(135deg,#102846 0%,#174b5a 58%,#1a766f 100%);
+    border-radius:0 0 34px 34px;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background-image:url('./gerbang-digital-niaga.png');
+    background-repeat:repeat;background-size:330px auto;background-position:40px 300px;
+    opacity:.055;filter:grayscale(1);mix-blend-mode:multiply;
+  }
+  .shell{padding-top:28px;}
+  .brand{margin-bottom:24px;display:flex;align-items:center;justify-content:center;gap:12px;text-align:left;}
+  .brand-mark{width:70px;height:46px;border-radius:14px;display:grid;place-items:center;background:#fff;border:1px solid rgba(255,255,255,.4);box-shadow:0 10px 28px rgba(0,0,0,.16);overflow:hidden;}
+  .brand-mark img{display:block;width:100%;height:100%;object-fit:contain;transform:scale(1.25);}
+  .brand .eyebrow{margin:0 0 2px;color:#b9ded9;font-size:11px;}
+  .brand h1{font-size:20px;line-height:1.2;}
+  .card{border:1px solid rgba(18,33,63,.06);box-shadow:0 18px 50px -24px rgba(15,35,58,.42);padding:24px;border-radius:20px;}
+  .step-label{background:#e9f7f4;width:max-content;padding:7px 10px;border-radius:99px;letter-spacing:.04em;font-size:11px;}
+  p.desc{font-size:14px;}
+  .user-row{border:0;background:#f2f7f8;padding:13px;border-radius:14px;}
+  .user-row img{width:44px;height:44px;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.12);}
+  .cam-wrap{aspect-ratio:4/5;border-radius:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);}
+  .scan-ring{border-radius:18px;}
+  .status-item{border:1px solid transparent;padding:11px 13px;font-size:13px;}
+  .status-item.ok{border-color:#c7ebda}.status-item.bad{border-color:#f3c9c7}.status-item.warn{border-color:#f2dfb9}
+  button{border-radius:14px;min-height:48px;box-shadow:none;}
+  .btn-primary{background:linear-gradient(135deg,#1f9994,#19756f);box-shadow:0 10px 22px -12px rgba(31,153,148,.8);}
+  .btn-ghost{background:#f7f9fb;border-color:#dfe6ec;}
+  .admin-title{color:var(--navy);}
+  .table-wrap{border-radius:14px;background:#fff;}
+  th{position:sticky;top:0;z-index:1;background:#edf5f5;}
+  tbody tr:hover{background:#f8fbfb;}
+  .login-note{display:flex;align-items:center;gap:8px;justify-content:center;color:var(--muted);font-size:12px;margin-top:14px;}
+  .login-note span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#e8f5f2;color:var(--teal-dark);font-weight:800;}
+  @media(max-width:600px){
+    body{padding:0 12px 36px}.shell{padding-top:22px}.brand{justify-content:flex-start;padding:0 8px}.card{padding:20px;border-radius:18px}.cam-wrap{aspect-ratio:1/1.08}
+  }
 </style>
 </head>
 <body>
 
 <div class="shell">
   <div class="brand">
-    <div class="eyebrow">Absensi Karyawan</div>
-    <h1>Verifikasi Wajah &amp; Lokasi</h1>
+    <div class="brand-mark"><img src="./gerbang-digital-niaga.png" alt="Logo Gerbang Digital Niaga"></div>
+    <div><div class="eyebrow">Absensi Karyawan</div>
+    <h1>Gerbang Digital Niaga</h1></div>
   </div>
 
   <div id="configWarning" class="card hidden">
@@ -183,6 +228,7 @@
     <div class="step-label"><span class="dot"></span>Langkah 1 · Masuk</div>
     <p class="desc">Masuk memakai akun Google pribadi kamu. Hanya email yang sudah didaftarkan admin yang bisa absen.</p>
     <div id="gsi-btn-holder"></div>
+    <div class="login-note"><span>✓</span> Aman · Wajah dan lokasi terverifikasi</div>
   </div>
 
   <!-- STEP 2: CEK KARYAWAN -->
