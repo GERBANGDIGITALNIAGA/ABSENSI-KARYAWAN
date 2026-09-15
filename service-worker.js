@@ -1,9 +1,8 @@
-const CACHE_NAME = 'absensi-gdn-v1';
+const CACHE_NAME = 'absensi-gdn-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './gerbang-digital-niaga.png',
   './icon-192.png',
   './icon-512.png'
 ];
