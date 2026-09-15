@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="canonical" href="https://gerbangdigitalniaga.github.io/ABSENSI-KARYAWAN/">
+<script>
+  // Semua link lama (?v=1, ?v=8, ?v=12, dst.) diarahkan ke satu URL paten.
+  if (window.location.search) {
+    window.location.replace(window.location.pathname + window.location.hash);
+  }
+</script>
 <title>Absensi — Verifikasi Wajah &amp; Lokasi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -41,6 +48,7 @@
   }
   h1,h2,h3{font-family:'Poppins',sans-serif;margin:0;}
   .shell{width:100%;max-width:460px;}
+  .shell.admin-wide{max-width:1050px;}
   .brand{
     color:#fff;
     text-align:center;
@@ -145,6 +153,17 @@
     border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;
     font-weight:600;line-height:1.5;
   }
+  .admin-toolbar{display:flex;gap:10px;align-items:end;margin-bottom:18px;}
+  .admin-toolbar label{flex:1;font-size:12px;font-weight:700;color:var(--muted);}
+  .admin-toolbar input{display:block;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;}
+  .admin-toolbar button{width:auto;white-space:nowrap;}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-bottom:20px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+  th{background:#F4F7FA;color:var(--navy);font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+  tr:last-child td{border-bottom:0;}
+  .admin-title{font-size:18px;margin:4px 0 14px;}
+  @media(max-width:600px){.admin-toolbar{align-items:stretch;flex-direction:column}.admin-toolbar button{width:100%}.card{padding:20px}}
 </style>
 </head>
 <body>
@@ -182,7 +201,7 @@
   <!-- STEP 2B: REGISTRASI WAJAH (baru sekali di awal) -->
   <div class="card hidden" id="cardDaftarWajah">
     <div class="step-label"><span class="dot"></span>Langkah 2 · Daftarkan Wajah</div>
-    <p class="desc">Ini pertama kalinya kamu absen. Ambil satu foto wajah yang jelas untuk dijadikan data pembanding di absen berikutnya.</p>
+    <p class="desc">Ini pertama kalinya kamu absen. Hadapkan wajah ke kamera dengan cahaya yang cukup. Sistem akan mengambil beberapa sampel agar data pembanding lebih stabil.</p>
     <div class="user-row" id="userRowDaftar"></div>
     <div class="cam-wrap"><video id="videoDaftar" autoplay muted playsinline></video><canvas id="canvasDaftar" class="hidden"></canvas><div class="scan-ring wait" id="ringDaftar"></div></div>
     <button class="btn-primary" id="btnAmbilDaftar">Ambil Foto &amp; Daftarkan</button>
@@ -193,6 +212,7 @@
   <div class="card hidden" id="cardAbsen">
     <div class="step-label"><span class="dot"></span>Langkah 3 · Absen Sekarang</div>
     <div class="user-row" id="userRowAbsen"></div>
+    <button class="btn-ghost hidden" id="btnAdmin" style="margin:0 0 16px">Buka Laporan Admin</button>
     <div class="cam-wrap"><video id="videoAbsen" autoplay muted playsinline></video><canvas id="canvasAbsen" class="hidden"></canvas><div class="scan-ring wait" id="ringAbsen"></div></div>
     <div class="status-list">
       <div class="status-item warn" id="statLokasi">Lokasi &middot; menunggu…</div>
@@ -203,6 +223,21 @@
       <button class="btn-primary" id="btnMasuk" disabled>Absen Masuk</button>
       <button class="btn-primary" id="btnPulang" disabled>Absen Pulang</button>
     </div>
+  </div>
+
+  <div class="card hidden" id="cardAdmin">
+    <div class="step-label"><span class="dot"></span>Laporan Admin</div>
+    <h2 class="admin-title">Ringkasan Absensi Bulanan</h2>
+    <div class="admin-toolbar">
+      <label>Pilih bulan<input type="month" id="bulanLaporan"></label>
+      <button class="btn-primary" id="btnMuatLaporan">Tampilkan</button>
+    </div>
+    <p class="desc" id="statusLaporan">Pilih bulan untuk melihat laporan.</p>
+    <h3 class="admin-title">Ringkasan Karyawan</h3>
+    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Hari masuk</th><th>Hari libur</th><th>Total jam kerja</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
+    <h3 class="admin-title">Riwayat yang Absen</h3>
+    <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Nama</th><th>Jenis</th><th>Kantor</th></tr></thead><tbody id="tbodyRecords"></tbody></table></div>
+    <button class="btn-ghost" onclick="location.reload()">Kembali ke Absensi</button>
   </div>
 
   <!-- STEP 4: HASIL -->
@@ -227,10 +262,10 @@ const CONFIG = {
   OFFICES: [
     { nama: 'Jogja', lat: -7.7387746454571245, lng: 110.43456291086345 },
     { nama: 'Tangerang', lat: -6.339497, lng: 106.700075 },
-    { nama: 'Sunter', lat: -6.1574775, lng: 106.8783568, radius: 2000 } // radius dilonggarkan karena sinyal GPS di sini sering kurang akurat
+    { nama: 'Sunter', lat: -6.157460999640009, lng: 106.87843767054898 }
   ],
   MAX_DISTANCE_M: 50,
-  FACE_MATCH_THRESHOLD: 0.55, // disesuaikan berdasarkan data nyata — 0.4 kemarin terlalu ketat
+  FACE_MATCH_THRESHOLD: 0.60,
   EAR_CLOSE: 0.25, // di bawah angka ini dianggap mata tertutup (dilonggarkan supaya lebih mudah terdeteksi)
   EAR_OPEN: 0.27,   // di atas angka ini dianggap mata terbuka lagi (jadi 1 kedipan terhitung)
   MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
@@ -239,9 +274,11 @@ const CONFIG = {
 /* =========================================================
    STATE
    ========================================================= */
-let currentUser = null;      // {email, nama, foto}
+let currentUser = null;      // {email, nama, foto, idToken}
 let employeeRecord = null;   // baris dari sheet Karyawan
 let modelsPromise = null;    // promise tunggal supaya model tidak diunduh berkali-kali
+let attendanceChallenge = null; // {challengeId, expiresAt}, hanya disimpan sementara di memory
+let currentUserIsAdmin = false;
 
 /* =========================================================
    CEK KONFIGURASI
@@ -281,16 +318,24 @@ function decodeJwt(token){
 
 async function handleCredentialResponse(response){
   const payload = decodeJwt(response.credential);
-  currentUser = { email: payload.email.toLowerCase().trim(), nama: payload.name, foto: payload.picture, idToken: response.credential };
+  currentUser = {
+    email: payload.email.toLowerCase().trim(),
+    nama: payload.name,
+    foto: payload.picture,
+    idToken: response.credential
+  };
 
   show('cardLogin', false);
   show('cardChecking', true);
 
-  const list = await fetchEmployeeList();
+  const employeeData = await fetchEmployeeList();
+  const list = employeeData.karyawan;
+  currentUserIsAdmin = employeeData.isAdmin;
   const rec = list.find(k => k.email === currentUser.email);
   show('cardChecking', false);
 
   if (!rec){
+    if (currentUserIsAdmin){ openAdmin(); return; }
     document.getElementById('notRegEmail').textContent = currentUser.email;
     show('cardNotRegistered', true);
     return;
@@ -307,13 +352,29 @@ async function handleCredentialResponse(response){
 
 async function fetchEmployeeList(){
   try{
-    const res = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=list');
-    const data = await res.json();
-    return data.karyawan || [];
+    const data = await postToScript({
+      action: 'list',
+      idToken: currentUser.idToken
+    });
+    if (!data || !data.ok) {
+      throw new Error((data && (data.pesan || data.error)) || 'Gagal mengambil data karyawan');
+    }
+    return { karyawan: data.karyawan || [], isAdmin: !!data.isAdmin };
   }catch(e){
     alert('Gagal mengambil data karyawan. Cek koneksi atau konfigurasi Apps Script.');
-    return [];
+    throw e;
   }
+}
+
+async function requestAttendanceChallenge(){
+  const data = await postToScript({
+    action: 'mulaiAbsen',
+    idToken: currentUser.idToken
+  });
+  if (!data || !data.ok || !data.challengeId || !data.expiresAt) {
+    throw new Error((data && (data.pesan || data.error)) || 'Gagal memulai sesi absensi');
+  }
+  return { challengeId: data.challengeId, expiresAt: data.expiresAt };
 }
 
 /* =========================================================
@@ -332,21 +393,32 @@ function loadModelsOnce(){
 
 async function getDescriptorFromVideo(videoEl){
   const det = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.35 }))
     .withFaceLandmarks()
     .withFaceDescriptor();
   return det ? det.descriptor : null;
 }
 
-// Khusus untuk PENDAFTARAN wajah pertama kali (jadi data pembanding selamanya).
-// Lebih ketat & wajib yakin, supaya tidak menyimpan data yang buruk/tidak jelas.
-async function getDescriptorUntukDaftar(videoEl){
-  const det = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-  if (!det || det.detection.score < 0.6) return null; // deteksi kurang yakin, jangan disimpan
-  return det.descriptor;
+// Ambil beberapa sampel, lalu rata-ratakan dan normalisasi descriptor.
+// Ini mengurangi kegagalan akibat satu frame buram, ekspresi, atau sudut sesaat.
+async function getStableDescriptorFromVideo(videoEl, targetSamples = 3, maxAttempts = 7){
+  const descriptors = [];
+  for (let attempt = 0; attempt < maxAttempts && descriptors.length < targetSamples; attempt++){
+    const descriptor = await getDescriptorFromVideo(videoEl);
+    if (descriptor) descriptors.push(descriptor);
+    if (descriptors.length < targetSamples) {
+      await new Promise(resolve => setTimeout(resolve, 140));
+    }
+  }
+  if (!descriptors.length) return null;
+
+  const average = new Float32Array(descriptors[0].length);
+  descriptors.forEach(descriptor => {
+    descriptor.forEach((value, i) => { average[i] += value / descriptors.length; });
+  });
+  const norm = Math.hypot(...average);
+  if (!norm) return null;
+  return Float32Array.from(average, value => value / norm);
 }
 
 async function startCamera(videoEl){
@@ -370,7 +442,9 @@ function eyeAspectRatio(eye){
 // Memantau video terus-menerus sampai terdeteksi 1 kedipan mata utuh
 // (mata terbuka -> tertutup -> terbuka lagi). Memanggil onBlinkDetected() sekali saat terdeteksi.
 function startBlinkWatcher(videoEl, onBlinkDetected){
+  let mataPernahTerbuka = false;
   let mataPernahTertutup = false;
+  const samples = [];
   const interval = setInterval(async () => {
     const det = await faceapi
       .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }))
@@ -381,11 +455,20 @@ function startBlinkWatcher(videoEl, onBlinkDetected){
     const earKanan = eyeAspectRatio(det.landmarks.getRightEye());
     const ear = (earKiri + earKanan) / 2;
 
-    if (ear < CONFIG.EAR_CLOSE){
+    samples.push({
+      capturedAt: Date.now(),
+      earKiri: Number(earKiri.toFixed(4)),
+      earKanan: Number(earKanan.toFixed(4))
+    });
+    if (samples.length > 400) samples.shift();
+
+    if (ear > CONFIG.EAR_OPEN && !mataPernahTerbuka){
+      mataPernahTerbuka = true;
+    } else if (ear < CONFIG.EAR_CLOSE && mataPernahTerbuka){
       mataPernahTertutup = true;
-    } else if (ear > CONFIG.EAR_OPEN && mataPernahTertutup){
+    } else if (ear > CONFIG.EAR_OPEN && mataPernahTerbuka && mataPernahTertutup){
       clearInterval(interval);
-      onBlinkDetected();
+      onBlinkDetected(samples.slice());
     }
   }, 180);
   return interval;
@@ -412,11 +495,11 @@ async function startRegistrasi(){
   btn.onclick = async () => {
     btn.disabled = true;
     statusText.textContent = 'Mendeteksi wajah…';
-    const descriptor = await getDescriptorUntukDaftar(video);
+    const descriptor = await getStableDescriptorFromVideo(video);
 
     if (!descriptor){
       ring.className = 'scan-ring bad';
-      statusText.textContent = 'Wajah belum terdeteksi dengan yakin. Lepas penutup kepala/hoodie, pastikan wajah penuh terlihat & cahaya terang dari depan, lalu coba lagi.';
+      statusText.textContent = 'Wajah tidak terdeteksi jelas. Coba lagi dengan pencahayaan lebih baik.';
       btn.disabled = false;
       return;
     }
@@ -427,6 +510,8 @@ async function startRegistrasi(){
     const res = await postToScript({
       action: 'daftar',
       idToken: currentUser.idToken,
+      email: currentUser.email,
+      nama: currentUser.nama,
       deskriptor: Array.from(descriptor)
     });
 
@@ -435,7 +520,7 @@ async function startRegistrasi(){
       employeeRecord.hasDeskriptor = true;
       setTimeout(() => { show('cardDaftarWajah', false); startAbsen(); }, 900);
     } else {
-      statusText.textContent = (res && res.pesan) ? res.pesan : 'Gagal menyimpan data. Coba lagi.';
+      statusText.textContent = (res && (res.pesan || res.error)) || 'Gagal menyimpan data. Coba lagi.';
       btn.disabled = false;
     }
   };
@@ -455,8 +540,22 @@ async function startAbsen(){
   const statLokasi = document.getElementById('statLokasi');
   const statLiveness = document.getElementById('statLiveness');
   const statWajah = document.getElementById('statWajah');
+  if (currentUserIsAdmin) {
+    const btnAdmin = document.getElementById('btnAdmin');
+    show('btnAdmin', true);
+    btnAdmin.onclick = openAdmin;
+  }
 
-  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, radiusKantor = CONFIG.MAX_DISTANCE_M, lokasiSiap = false, livenessOk = false;
+  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = false, livenessEvidence = null;
+
+  try {
+    attendanceChallenge = await requestAttendanceChallenge();
+  } catch (e) {
+    statWajah.textContent = 'Wajah · sesi absensi gagal dimulai';
+    statWajah.className = 'status-item bad';
+    alert('Gagal memulai sesi absensi. Silakan coba lagi.');
+    return;
+  }
 
   function cekTombolSiap(){
     const siap = lokasiSiap && livenessOk;
@@ -470,8 +569,9 @@ async function startAbsen(){
   ring.className = 'scan-ring wait';
 
   // Mulai pantau kedipan mata sesaat setelah kamera & model siap.
-  const blinkInterval = startBlinkWatcher(video, () => {
+  const blinkInterval = startBlinkWatcher(video, (samples) => {
     clearTimeout(hintTimer);
+    livenessEvidence = samples;
     livenessOk = true;
     statLiveness.textContent = 'Verifikasi hidup · terkonfirmasi ✓';
     statLiveness.className = 'status-item ok';
@@ -483,99 +583,134 @@ async function startAbsen(){
     }
   }, 4000);
 
-  let watchId = null;
-  let waitTimeoutId = null;
-  let akurasiTerbaik = Infinity;
-
-  function kunciLokasi(){
-    if (lokasiSiap || !koordinat) return;
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    clearTimeout(waitTimeoutId);
+  navigator.geolocation.getCurrentPosition((pos) => {
+    koordinat = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      capturedAt: pos.timestamp || Date.now()
+    };
     const t = kantorTerdekat(koordinat.lat, koordinat.lng);
     jarak = t.jarak;
     namaKantor = t.nama;
-    radiusKantor = t.radius;
-    lokasiOk = jarak <= t.radius;
+    lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
     lokasiSiap = true;
     statLokasi.textContent = `Lokasi · ${jarak} m dari ${namaKantor}`;
     statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
     cekTombolSiap();
-  }
-
-  statLokasi.textContent = 'Lokasi · mencari sinyal GPS…';
-  watchId = navigator.geolocation.watchPosition((pos) => {
-    const akurasi = pos.coords.accuracy; // dalam meter
-    if (akurasi < akurasiTerbaik){
-      akurasiTerbaik = akurasi;
-      koordinat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    }
-    if (!lokasiSiap){
-      statLokasi.textContent = `Lokasi · menyempurnakan sinyal (±${Math.round(akurasi)}m)…`;
-    }
-    if (akurasi <= 30){
-      kunciLokasi(); // sinyal sudah cukup akurat, langsung pakai
-    }
   }, (err) => {
     statLokasi.textContent = 'Lokasi · gagal diakses (izinkan GPS)';
     statLokasi.className = 'status-item bad';
-  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
-
-  // Kalau 15 detik belum dapat sinyal setajam itu, pakai hasil terbaik yang ada
-  // supaya tidak menunggu selamanya (lebih baik daripada macet).
-  waitTimeoutId = setTimeout(kunciLokasi, 15000);
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 
   async function kirimAbsen(jenis){
+    if (!attendanceChallenge || !attendanceChallenge.challengeId ||
+        Date.now() >= Number(attendanceChallenge.expiresAt)) {
+      alert('Sesi absensi tidak tersedia atau sudah kedaluwarsa. Silakan mulai ulang.');
+      return;
+    }
+    const challengeId = attendanceChallenge.challengeId;
+    attendanceChallenge = null;
+
     btnMasuk.disabled = true;
     btnPulang.disabled = true;
     statWajah.textContent = 'Wajah · mendeteksi…';
 
-    const descriptor = await getDescriptorFromVideo(video);
+    const descriptor = await getStableDescriptorFromVideo(video);
+    const descriptorCapturedAt = Date.now();
 
     if (!descriptor){
-      statWajah.textContent = 'Wajah · tidak terdeteksi, coba lagi';
+      statWajah.textContent = 'Wajah · tidak terdeteksi';
       statWajah.className = 'status-item bad';
       ring.className = 'scan-ring bad';
-      btnMasuk.disabled = false;
-      btnPulang.disabled = false;
-      return;
+    } else {
+      statWajah.textContent = 'Wajah · terdeteksi, menunggu verifikasi server…';
+      statWajah.className = 'status-item warn';
+      ring.className = 'scan-ring wait';
     }
 
-    statWajah.textContent = 'Wajah · mengirim untuk diverifikasi…';
-    ring.className = 'scan-ring wait';
-
-    // PENTING: keputusan diterima/ditolak dihitung di SERVER (Apps Script),
-    // bukan di sini — supaya tidak bisa dipalsukan lewat browser/console.
-    const hasil = await postToScript({
+    const res = await postToScript({
       action: 'absen',
       idToken: currentUser.idToken,
+      challengeId: challengeId,
+      email: currentUser.email,
+      nama: employeeRecord.nama || currentUser.nama,
       jenis: jenis,
+      kantor: namaKantor,
       lat: koordinat ? koordinat.lat : '',
       lng: koordinat ? koordinat.lng : '',
-      deskriptorLive: Array.from(descriptor),
+      gpsAccuracy: koordinat ? koordinat.accuracy : '',
+      gpsCapturedAt: koordinat ? koordinat.capturedAt : '',
+      jarak: jarak,
+      deskriptorLive: descriptor ? Array.from(descriptor) : [],
+      descriptorCapturedAt: descriptorCapturedAt,
+      livenessSamples: livenessEvidence || [],
       foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
     });
 
-    if (!hasil || !hasil.ok){
-      statWajah.textContent = 'Gagal terhubung ke server, coba lagi';
-      statWajah.className = 'status-item bad';
-      btnMasuk.disabled = false;
-      btnPulang.disabled = false;
+    if (!res || !res.ok){
+      const pesan = (res && (res.pesan || res.error)) || 'Gagal menghubungi server. Silakan coba lagi.';
+      tampilkanHasil(false, jarak, false, [pesan], jenis, namaKantor);
       return;
     }
 
-    statWajah.textContent = hasil.wajahOk ? 'Wajah · cocok' : 'Wajah · tidak cocok';
-    statWajah.className = 'status-item ' + (hasil.wajahOk ? 'ok' : 'bad');
-    ring.className = 'scan-ring ' + (hasil.wajahOk ? 'ok' : 'bad');
-
-    const keterangan = hasil.keterangan ? hasil.keterangan.split('; ').filter(Boolean) : [];
-    tampilkanHasil(hasil.diterima, hasil.jarak, hasil.wajahOk, keterangan, jenis, hasil.namaKantor, hasil.lokasiOk);
+    const keteranganServer = res.keterangan ? res.keterangan.split('; ').filter(Boolean) : [];
+    tampilkanHasil(
+      res.diterima,
+      res.jarak,
+      res.wajahOk,
+      keteranganServer,
+      jenis,
+      res.namaKantor,
+      res.skorWajah
+    );
   }
 
   btnMasuk.onclick = () => kirimAbsen('Masuk');
   btnPulang.onclick = () => kirimAbsen('Pulang');
 }
 
-function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, lokasiOk){
+function defaultBulanLaporan(){
+  const now = new Date();
+  if (now.getDate() === 1) now.setMonth(now.getMonth() - 1);
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatDurasi(totalMenit){
+  const jam = Math.floor(totalMenit / 60);
+  const menit = totalMenit % 60;
+  return `${jam} jam ${menit} menit`;
+}
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+async function openAdmin(){
+  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardHasil'].forEach(id => show(id, false));
+  show('cardAdmin', true);
+  document.querySelector('.shell').classList.add('admin-wide');
+  const input = document.getElementById('bulanLaporan');
+  if (!input.value) input.value = defaultBulanLaporan();
+  document.getElementById('btnMuatLaporan').onclick = muatLaporanAdmin;
+  await muatLaporanAdmin();
+}
+
+async function muatLaporanAdmin(){
+  const bulan = document.getElementById('bulanLaporan').value;
+  const status = document.getElementById('statusLaporan');
+  status.textContent = 'Memuat laporan…';
+  const data = await postToScript({ action:'laporanAdmin', idToken:currentUser.idToken, bulan });
+  if (!data || !data.ok){
+    status.textContent = (data && (data.pesan || data.error)) || 'Laporan gagal dimuat.';
+    return;
+  }
+  status.textContent = `Menampilkan ${data.summaries.length} karyawan dan ${data.records.length} catatan absensi.`;
+  document.getElementById('tbodySummary').innerHTML = data.summaries.length ? data.summaries.map(s => `<tr><td>${escapeHtml(s.nama)}<br><small>${escapeHtml(s.email)}</small></td><td>${s.hariMasuk}</td><td>${s.hariLibur}</td><td>${formatDurasi(s.totalMenitKerja)}</td></tr>`).join('') : '<tr><td colspan="4">Belum ada data.</td></tr>';
+  document.getElementById('tbodyRecords').innerHTML = data.records.length ? data.records.map(r => `<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam)}</td><td>${escapeHtml(r.nama)}</td><td>${escapeHtml(r.jenis)}</td><td>${escapeHtml(r.kantor)}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada absensi diterima.</td></tr>';
+}
+
+function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, skorWajah = null){
   show('cardAbsen', false);
   show('cardHasil', true);
   const icon = document.getElementById('hasilIcon');
@@ -591,8 +726,8 @@ function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor,
     : keterangan.join(', ');
 
   detail.innerHTML = `
-    <div class="status-item ${lokasiOk ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
-    <div class="status-item ${wajahOk ? 'ok' : 'bad'}">Kecocokan wajah · ${wajahOk ? 'cocok' : 'tidak cocok'}</div>
+    <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
+    <div class="status-item ${wajahOk ? 'ok' : 'bad'}">Kecocokan wajah · ${wajahOk ? 'cocok' : 'tidak cocok'}${skorWajah !== null ? ` (skor ${skorWajah})` : ''}</div>
   `;
 }
 
@@ -613,7 +748,7 @@ function kantorTerdekat(lat, lng){
   let hasil = null;
   CONFIG.OFFICES.forEach(o => {
     const d = haversine(lat, lng, o.lat, o.lng);
-    if (!hasil || d < hasil.jarak) hasil = { nama: o.nama, jarak: Math.round(d), radius: o.radius || CONFIG.MAX_DISTANCE_M };
+    if (!hasil || d < hasil.jarak) hasil = { nama: o.nama, jarak: Math.round(d) };
   });
   return hasil;
 }
