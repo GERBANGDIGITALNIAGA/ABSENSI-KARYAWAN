@@ -234,7 +234,7 @@
     </div>
     <p class="desc" id="statusLaporan">Pilih bulan untuk melihat laporan.</p>
     <h3 class="admin-title">Ringkasan Karyawan</h3>
-    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Hari masuk</th><th>Hari libur</th><th>Total jam kerja</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Hari masuk</th><th>Hari libur</th><th>Total jam kerja</th><th>Catatan</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
     <h3 class="admin-title">Riwayat yang Absen</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Nama</th><th>Jenis</th><th>Kantor</th></tr></thead><tbody id="tbodyRecords"></tbody></table></div>
     <button class="btn-primary" id="btnKeAbsensi">Buka Halaman Absensi</button>
@@ -266,8 +266,8 @@ const CONFIG = {
     { nama: 'Tangerang', lat: -6.339497, lng: 106.700075 },
     { nama: 'Sunter', lat: -6.157460999640009, lng: 106.87843767054898 }
   ],
-  MAX_DISTANCE_M: 50,
-  FACE_MATCH_THRESHOLD: 0.60,
+  MAX_DISTANCE_M: 100,
+  FACE_MATCH_THRESHOLD: 0.65,
   EAR_CLOSE: 0.25, // di bawah angka ini dianggap mata tertutup (dilonggarkan supaya lebih mudah terdeteksi)
   EAR_OPEN: 0.27,   // di atas angka ini dianggap mata terbuka lagi (jadi 1 kedipan terhitung)
   MODEL_URL: 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights'
@@ -412,13 +412,13 @@ async function getDescriptorFromVideo(videoEl){
 
 // Ambil beberapa sampel, lalu rata-ratakan dan normalisasi descriptor.
 // Ini mengurangi kegagalan akibat satu frame buram, ekspresi, atau sudut sesaat.
-async function getStableDescriptorFromVideo(videoEl, targetSamples = 3, maxAttempts = 7){
+async function getStableDescriptorFromVideo(videoEl, targetSamples = 2, maxAttempts = 4){
   const descriptors = [];
   for (let attempt = 0; attempt < maxAttempts && descriptors.length < targetSamples; attempt++){
     const descriptor = await getDescriptorFromVideo(videoEl);
     if (descriptor) descriptors.push(descriptor);
     if (descriptors.length < targetSamples) {
-      await new Promise(resolve => setTimeout(resolve, 140));
+      await new Promise(resolve => setTimeout(resolve, 90));
     }
   }
   if (!descriptors.length) return null;
@@ -453,8 +453,8 @@ function eyeAspectRatio(eye){
 // Memantau video terus-menerus sampai terdeteksi 1 kedipan mata utuh
 // (mata terbuka -> tertutup -> terbuka lagi). Memanggil onBlinkDetected() sekali saat terdeteksi.
 function startBlinkWatcher(videoEl, onBlinkDetected){
-  let mataPernahTerbuka = false;
   let mataPernahTertutup = false;
+  let earMaksimum = 0;
   const samples = [];
   const interval = setInterval(async () => {
     const det = await faceapi
@@ -473,15 +473,14 @@ function startBlinkWatcher(videoEl, onBlinkDetected){
     });
     if (samples.length > 400) samples.shift();
 
-    if (ear > CONFIG.EAR_OPEN && !mataPernahTerbuka){
-      mataPernahTerbuka = true;
-    } else if (ear < CONFIG.EAR_CLOSE && mataPernahTerbuka){
+    earMaksimum = Math.max(earMaksimum, ear);
+    if (!mataPernahTertutup && earMaksimum >= 0.20 && ear <= earMaksimum - 0.025){
       mataPernahTertutup = true;
-    } else if (ear > CONFIG.EAR_OPEN && mataPernahTerbuka && mataPernahTertutup){
+    } else if (mataPernahTertutup && ear >= earMaksimum - 0.012){
       clearInterval(interval);
       onBlinkDetected(samples.slice());
     }
-  }, 180);
+  }, 120);
   return interval;
 }
 
@@ -728,7 +727,7 @@ async function muatLaporanAdmin(){
     return;
   }
   status.textContent = `Menampilkan ${data.summaries.length} karyawan dan ${data.records.length} catatan absensi.`;
-  document.getElementById('tbodySummary').innerHTML = data.summaries.length ? data.summaries.map(s => `<tr><td>${escapeHtml(s.nama)}<br><small>${escapeHtml(s.email)}</small></td><td>${s.hariMasuk}</td><td>${s.hariLibur}</td><td>${formatDurasi(s.totalMenitKerja)}</td></tr>`).join('') : '<tr><td colspan="4">Belum ada data.</td></tr>';
+  document.getElementById('tbodySummary').innerHTML = data.summaries.length ? data.summaries.map(s => `<tr><td>${escapeHtml(s.nama)}<br><small>${escapeHtml(s.email)}</small></td><td>${s.hariMasuk}</td><td>${s.hariLibur}</td><td>${formatDurasi(s.totalMenitKerja)}</td><td>${escapeHtml(s.catatan || 'Lengkap')}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada data.</td></tr>';
   document.getElementById('tbodyRecords').innerHTML = data.records.length ? data.records.map(r => `<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam)}</td><td>${escapeHtml(r.nama)}</td><td>${escapeHtml(r.jenis)}</td><td>${escapeHtml(r.kantor)}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada absensi diterima.</td></tr>';
 }
 
