@@ -259,6 +259,7 @@
 const CONFIG = {
   GOOGLE_CLIENT_ID: '939677631809-7vg62e6fq9jbga5hiru4bcagv2s89ar1.apps.googleusercontent.com',
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzOS85h8vD9wnJC2BFhHB-t46Ghe9xcgavQiuml-6Amt3Emu5PCAZ6stuYtYz_zCa4_/exec',
+  ADMIN_EMAILS: ['fajriafifala@gmail.com'],
   OFFICES: [
     { nama: 'Jogja', lat: -7.7387746454571245, lng: 110.43456291086345 },
     { nama: 'Tangerang', lat: -6.339497, lng: 106.700075 },
@@ -330,7 +331,9 @@ async function handleCredentialResponse(response){
 
   const employeeData = await fetchEmployeeList();
   const list = employeeData.karyawan;
-  currentUserIsAdmin = employeeData.isAdmin;
+  // UI tetap mengenali admin meskipun respons backend lama belum membawa isAdmin.
+  // Data laporan sendiri tetap dilindungi dan divalidasi ulang oleh Code.gs.
+  currentUserIsAdmin = employeeData.isAdmin || CONFIG.ADMIN_EMAILS.includes(currentUser.email);
   const rec = list.find(k => k.email === currentUser.email);
   show('cardChecking', false);
 
