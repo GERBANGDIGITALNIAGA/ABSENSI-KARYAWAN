@@ -237,7 +237,8 @@
     <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Hari masuk</th><th>Hari libur</th><th>Total jam kerja</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
     <h3 class="admin-title">Riwayat yang Absen</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Nama</th><th>Jenis</th><th>Kantor</th></tr></thead><tbody id="tbodyRecords"></tbody></table></div>
-    <button class="btn-ghost" onclick="location.reload()">Kembali ke Absensi</button>
+    <button class="btn-primary" id="btnKeAbsensi">Buka Halaman Absensi</button>
+    <button class="btn-ghost" onclick="location.reload()">Keluar / Ganti Akun</button>
   </div>
 
   <!-- STEP 4: HASIL -->
@@ -345,6 +346,13 @@ async function handleCredentialResponse(response){
   }
 
   employeeRecord = rec;
+
+  // Akun admin langsung masuk dashboard; halaman absen tetap dapat dibuka
+  // melalui tombol di dashboard bila admin juga perlu mencatat kehadiran.
+  if (currentUserIsAdmin){
+    openAdmin();
+    return;
+  }
 
   if (!rec.hasDeskriptor){
     startRegistrasi();
@@ -696,7 +704,18 @@ async function openAdmin(){
   const input = document.getElementById('bulanLaporan');
   if (!input.value) input.value = defaultBulanLaporan();
   document.getElementById('btnMuatLaporan').onclick = muatLaporanAdmin;
+  const btnKeAbsensi = document.getElementById('btnKeAbsensi');
+  btnKeAbsensi.classList.toggle('hidden', !employeeRecord);
+  btnKeAbsensi.onclick = openAttendanceFromAdmin;
   await muatLaporanAdmin();
+}
+
+function openAttendanceFromAdmin(){
+  show('cardAdmin', false);
+  document.querySelector('.shell').classList.remove('admin-wide');
+  if (!employeeRecord) return;
+  if (!employeeRecord.hasDeskriptor) startRegistrasi();
+  else startAbsen();
 }
 
 async function muatLaporanAdmin(){
