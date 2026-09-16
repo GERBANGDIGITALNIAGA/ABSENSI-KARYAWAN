@@ -262,6 +262,15 @@
     <button class="btn-ghost" onclick="location.reload()">Coba akun lain</button>
   </div>
 
+  <!-- MENU KARYAWAN: kamera dan GPS belum dijalankan di halaman ini -->
+  <div class="card hidden" id="cardMenuKaryawan">
+    <div class="step-label"><span class="dot"></span>Menu Karyawan</div>
+    <div class="user-row" id="userRowMenu"></div>
+    <p class="desc">Pilih kegiatan yang ingin dilakukan.</p>
+    <button class="btn-primary" id="btnMenuAbsen">Absen Masuk / Pulang</button>
+    <button class="btn-ghost" id="btnMenuPengajuan">Ajukan Sakit, Izin, atau Cuti</button>
+  </div>
+
   <!-- STEP 2B: REGISTRASI WAJAH (baru sekali di awal) -->
   <div class="card hidden" id="cardDaftarWajah">
     <div class="step-label"><span class="dot"></span>Langkah 2 · Daftarkan Wajah</div>
@@ -303,7 +312,7 @@
     <p class="desc" id="statusPengajuan" style="margin-top:12px"></p>
     <h3 class="admin-title">Riwayat Pengajuan Saya</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th></tr></thead><tbody id="tbodyPengajuanSaya"></tbody></table></div>
-    <button class="btn-ghost" id="btnKembaliAbsen">Kembali ke Absensi</button>
+    <button class="btn-ghost" id="btnKembaliAbsen">Kembali ke Menu</button>
   </div>
 
   <div class="card hidden" id="cardAdmin">
@@ -437,11 +446,21 @@ async function handleCredentialResponse(response){
     return;
   }
 
-  if (!rec.hasDeskriptor){
-    startRegistrasi();
-  } else {
-    startAbsen();
-  }
+  openEmployeeMenu();
+}
+
+function openEmployeeMenu(){
+  hentikanSemuaKamera();
+  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardPengajuan','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  show('cardMenuKaryawan', true);
+  document.querySelector('.shell').classList.remove('admin-wide');
+  document.getElementById('userRowMenu').innerHTML = userRowHtml(currentUser);
+  document.getElementById('btnMenuAbsen').onclick = () => {
+    show('cardMenuKaryawan', false);
+    if (!employeeRecord.hasDeskriptor) startRegistrasi();
+    else startAbsen();
+  };
+  document.getElementById('btnMenuPengajuan').onclick = openPengajuan;
 }
 
 async function fetchEmployeeList(){
@@ -809,7 +828,7 @@ function hentikanSemuaKamera(){
 
 async function openPengajuan(){
   hentikanSemuaKamera();
-  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardAdmin','cardHasil'].forEach(id => show(id, false));
   show('cardPengajuan', true);
   document.querySelector('.shell').classList.remove('admin-wide');
   const hariIni = tanggalLokal();
@@ -821,8 +840,7 @@ async function openPengajuan(){
   document.getElementById('btnKirimPengajuan').onclick = kirimPengajuan;
   document.getElementById('btnKembaliAbsen').onclick = () => {
     show('cardPengajuan', false);
-    if (employeeRecord && employeeRecord.hasDeskriptor) startAbsen();
-    else if (employeeRecord) startRegistrasi();
+    if (employeeRecord) openEmployeeMenu();
   };
   await muatPengajuanSaya();
 }
@@ -877,7 +895,7 @@ function escapeHtml(value){
 
 async function openAdmin(){
   hentikanSemuaKamera();
-  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardPengajuan','cardHasil'].forEach(id => show(id, false));
+  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardPengajuan','cardHasil'].forEach(id => show(id, false));
   show('cardAdmin', true);
   document.querySelector('.shell').classList.add('admin-wide');
   const input = document.getElementById('bulanLaporan');
@@ -893,8 +911,7 @@ function openAttendanceFromAdmin(){
   show('cardAdmin', false);
   document.querySelector('.shell').classList.remove('admin-wide');
   if (!employeeRecord) return;
-  if (!employeeRecord.hasDeskriptor) startRegistrasi();
-  else startAbsen();
+  openEmployeeMenu();
 }
 
 async function muatLaporanAdmin(){
