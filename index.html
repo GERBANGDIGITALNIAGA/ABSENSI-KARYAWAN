@@ -216,6 +216,15 @@
     body{padding:0 12px 36px}.shell{padding-top:22px}.brand{justify-content:flex-start;padding:0 8px}.card{padding:20px;border-radius:18px}.cam-wrap{aspect-ratio:1/1.08}
   }
   .install-app{margin-top:12px;background:#fff;color:var(--navy);border:1px solid #d7e1e7;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .form-field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--muted);}
+  .form-field.full{grid-column:1/-1;}
+  .form-field input,.form-field select,.form-field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;color:var(--ink);background:#fff;}
+  .form-field textarea{min-height:90px;resize:vertical;}
+  .btn-small{width:auto;min-height:34px;padding:7px 10px;font-size:12px;margin:0 5px 0 0;}
+  .status-badge{display:inline-block;padding:4px 8px;border-radius:99px;font-size:11px;font-weight:700;background:var(--warn-bg);color:var(--warn);}
+  .status-badge.approved{background:var(--ok-bg);color:var(--ok)}.status-badge.rejected{background:var(--bad-bg);color:var(--bad)}
+  @media(max-width:600px){.form-grid{grid-template-columns:1fr}.form-field.full{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -268,6 +277,7 @@
     <div class="step-label"><span class="dot"></span>Langkah 3 · Absen Sekarang</div>
     <div class="user-row" id="userRowAbsen"></div>
     <button class="btn-ghost hidden" id="btnAdmin" style="margin:0 0 16px">Buka Laporan Admin</button>
+    <button class="btn-ghost" id="btnBukaPengajuan" style="margin:0 0 16px">Ajukan Sakit, Izin, atau Cuti</button>
     <div class="cam-wrap"><video id="videoAbsen" autoplay muted playsinline></video><canvas id="canvasAbsen" class="hidden"></canvas><div class="scan-ring wait" id="ringAbsen"></div></div>
     <div class="status-list">
       <div class="status-item warn" id="statLokasi">Lokasi &middot; menunggu…</div>
@@ -280,6 +290,22 @@
     </div>
   </div>
 
+  <div class="card hidden" id="cardPengajuan">
+    <div class="step-label"><span class="dot"></span>Pengajuan Ketidakhadiran</div>
+    <p class="desc">Gunakan formulir ini jika tidak masuk di luar jadwal libur. Pengajuan akan berlaku setelah disetujui admin.</p>
+    <div class="form-grid">
+      <label class="form-field">Jenis<select id="jenisPengajuan"><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Cuti">Cuti</option></select></label>
+      <label class="form-field">Tanggal mulai<input type="date" id="tanggalMulaiPengajuan"></label>
+      <label class="form-field">Tanggal selesai<input type="date" id="tanggalSelesaiPengajuan"></label>
+      <label class="form-field full">Alasan<textarea id="alasanPengajuan" maxlength="500" placeholder="Tuliskan alasan pengajuan"></textarea></label>
+    </div>
+    <button class="btn-primary" id="btnKirimPengajuan">Kirim Pengajuan</button>
+    <p class="desc" id="statusPengajuan" style="margin-top:12px"></p>
+    <h3 class="admin-title">Riwayat Pengajuan Saya</h3>
+    <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th></tr></thead><tbody id="tbodyPengajuanSaya"></tbody></table></div>
+    <button class="btn-ghost" id="btnKembaliAbsen">Kembali ke Absensi</button>
+  </div>
+
   <div class="card hidden" id="cardAdmin">
     <div class="step-label"><span class="dot"></span>Laporan Admin</div>
     <h2 class="admin-title">Ringkasan Absensi Bulanan</h2>
@@ -289,7 +315,9 @@
     </div>
     <p class="desc" id="statusLaporan">Pilih bulan untuk melihat laporan.</p>
     <h3 class="admin-title">Ringkasan Karyawan</h3>
-    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Hari masuk</th><th>Hari libur</th><th>Total jam kerja</th><th>Catatan</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Masuk</th><th>Libur</th><th>Sakit</th><th>Izin</th><th>Cuti</th><th>Tanpa keterangan</th><th>Total jam kerja</th><th>Catatan</th></tr></thead><tbody id="tbodySummary"></tbody></table></div>
+    <h3 class="admin-title">Pengajuan Sakit, Izin, dan Cuti</h3>
+    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th><th>Tindakan</th></tr></thead><tbody id="tbodyPengajuanAdmin"></tbody></table></div>
     <h3 class="admin-title">Riwayat yang Absen</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Nama</th><th>Jenis</th><th>Kantor</th></tr></thead><tbody id="tbodyRecords"></tbody></table></div>
     <button class="btn-primary" id="btnKeAbsensi">Buka Halaman Absensi</button>
@@ -597,6 +625,7 @@ async function startRegistrasi(){
 async function startAbsen(){
   show('cardAbsen', true);
   document.getElementById('userRowAbsen').innerHTML = userRowHtml(currentUser);
+  document.getElementById('btnBukaPengajuan').onclick = openPengajuan;
 
   const video = document.getElementById('videoAbsen');
   const ring = document.getElementById('ringAbsen');
@@ -735,6 +764,69 @@ async function startAbsen(){
   btnPulang.onclick = () => kirimAbsen('Pulang');
 }
 
+function tanggalLokal(date = new Date()){
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function hentikanSemuaKamera(){
+  document.querySelectorAll('video').forEach(video => {
+    if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+  });
+}
+
+async function openPengajuan(){
+  hentikanSemuaKamera();
+  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  show('cardPengajuan', true);
+  document.querySelector('.shell').classList.remove('admin-wide');
+  const hariIni = tanggalLokal();
+  const mulai = document.getElementById('tanggalMulaiPengajuan');
+  const selesai = document.getElementById('tanggalSelesaiPengajuan');
+  if (!mulai.value) mulai.value = hariIni;
+  if (!selesai.value) selesai.value = mulai.value;
+  mulai.onchange = () => { if (!selesai.value || selesai.value < mulai.value) selesai.value = mulai.value; };
+  document.getElementById('btnKirimPengajuan').onclick = kirimPengajuan;
+  document.getElementById('btnKembaliAbsen').onclick = () => {
+    show('cardPengajuan', false);
+    if (employeeRecord && employeeRecord.hasDeskriptor) startAbsen();
+    else if (employeeRecord) startRegistrasi();
+  };
+  await muatPengajuanSaya();
+}
+
+async function kirimPengajuan(){
+  const tombol = document.getElementById('btnKirimPengajuan');
+  const status = document.getElementById('statusPengajuan');
+  tombol.disabled = true;
+  status.textContent = 'Mengirim pengajuan…';
+  const data = await postToScript({
+    action:'ajukanKetidakhadiran', idToken:currentUser.idToken,
+    jenis:document.getElementById('jenisPengajuan').value,
+    tanggalMulai:document.getElementById('tanggalMulaiPengajuan').value,
+    tanggalSelesai:document.getElementById('tanggalSelesaiPengajuan').value,
+    alasan:document.getElementById('alasanPengajuan').value
+  });
+  tombol.disabled = false;
+  status.textContent = (data && (data.pesan || data.error)) || 'Pengajuan gagal dikirim.';
+  if (data && data.ok){
+    document.getElementById('alasanPengajuan').value = '';
+    await muatPengajuanSaya();
+  }
+}
+
+function badgeStatus(status){
+  const kelas = status === 'Disetujui' ? ' approved' : status === 'Ditolak' ? ' rejected' : '';
+  return `<span class="status-badge${kelas}">${escapeHtml(status)}</span>`;
+}
+
+async function muatPengajuanSaya(){
+  const data = await postToScript({ action:'daftarPengajuan', idToken:currentUser.idToken });
+  const tbody = document.getElementById('tbodyPengajuanSaya');
+  if (!data || !data.ok){ tbody.innerHTML = '<tr><td colspan="4">Gagal memuat pengajuan.</td></tr>'; return; }
+  tbody.innerHTML = data.pengajuan.length ? data.pengajuan.map(p => `<tr><td>${escapeHtml(p.tanggalMulai)}${p.tanggalSelesai !== p.tanggalMulai ? ` – ${escapeHtml(p.tanggalSelesai)}` : ''}</td><td>${escapeHtml(p.jenis)}</td><td>${escapeHtml(p.alasan)}</td><td>${badgeStatus(p.status)}</td></tr>`).join('') : '<tr><td colspan="4">Belum ada pengajuan.</td></tr>';
+}
+
 function defaultBulanLaporan(){
   const now = new Date();
   if (now.getDate() === 1) now.setMonth(now.getMonth() - 1);
@@ -752,7 +844,8 @@ function escapeHtml(value){
 }
 
 async function openAdmin(){
-  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardHasil'].forEach(id => show(id, false));
+  hentikanSemuaKamera();
+  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardPengajuan','cardHasil'].forEach(id => show(id, false));
   show('cardAdmin', true);
   document.querySelector('.shell').classList.add('admin-wide');
   const input = document.getElementById('bulanLaporan');
@@ -761,7 +854,7 @@ async function openAdmin(){
   const btnKeAbsensi = document.getElementById('btnKeAbsensi');
   btnKeAbsensi.classList.toggle('hidden', !employeeRecord);
   btnKeAbsensi.onclick = openAttendanceFromAdmin;
-  await muatLaporanAdmin();
+  await Promise.all([muatLaporanAdmin(), muatPengajuanAdmin()]);
 }
 
 function openAttendanceFromAdmin(){
@@ -782,8 +875,24 @@ async function muatLaporanAdmin(){
     return;
   }
   status.textContent = `Menampilkan ${data.summaries.length} karyawan dan ${data.records.length} catatan absensi.`;
-  document.getElementById('tbodySummary').innerHTML = data.summaries.length ? data.summaries.map(s => `<tr><td>${escapeHtml(s.nama)}<br><small>${escapeHtml(s.email)}</small></td><td>${s.hariMasuk}</td><td>${s.hariLibur}</td><td>${formatDurasi(s.totalMenitKerja)}</td><td>${escapeHtml(s.catatan || 'Lengkap')}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada data.</td></tr>';
+  document.getElementById('tbodySummary').innerHTML = data.summaries.length ? data.summaries.map(s => `<tr><td>${escapeHtml(s.nama)}<br><small>${escapeHtml(s.email)}</small></td><td>${s.hariMasuk}</td><td>${s.hariLibur}</td><td>${s.sakit || 0}</td><td>${s.izin || 0}</td><td>${s.cuti || 0}</td><td>${s.tanpaKeterangan || 0}</td><td>${formatDurasi(s.totalMenitKerja)}</td><td>${escapeHtml(s.catatan || 'Lengkap')}</td></tr>`).join('') : '<tr><td colspan="9">Belum ada data.</td></tr>';
   document.getElementById('tbodyRecords').innerHTML = data.records.length ? data.records.map(r => `<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam)}</td><td>${escapeHtml(r.nama)}</td><td>${escapeHtml(r.jenis)}</td><td>${escapeHtml(r.kantor)}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada absensi diterima.</td></tr>';
+}
+
+async function muatPengajuanAdmin(){
+  const data = await postToScript({ action:'daftarPengajuan', idToken:currentUser.idToken });
+  const tbody = document.getElementById('tbodyPengajuanAdmin');
+  if (!data || !data.ok){ tbody.innerHTML = '<tr><td colspan="6">Gagal memuat pengajuan.</td></tr>'; return; }
+  tbody.innerHTML = data.pengajuan.length ? data.pengajuan.map(p => {
+    const tindakan = p.status === 'Diajukan' ? `<button class="btn-primary btn-small" onclick="prosesPengajuanAdmin('${escapeHtml(p.id)}','Disetujui')">Setujui</button><button class="btn-small" onclick="prosesPengajuanAdmin('${escapeHtml(p.id)}','Ditolak')">Tolak</button>` : '—';
+    return `<tr><td>${escapeHtml(p.nama)}<br><small>${escapeHtml(p.email)}</small></td><td>${escapeHtml(p.tanggalMulai)}${p.tanggalSelesai !== p.tanggalMulai ? ` – ${escapeHtml(p.tanggalSelesai)}` : ''}</td><td>${escapeHtml(p.jenis)}</td><td>${escapeHtml(p.alasan)}</td><td>${badgeStatus(p.status)}</td><td>${tindakan}</td></tr>`;
+  }).join('') : '<tr><td colspan="6">Belum ada pengajuan.</td></tr>';
+}
+
+async function prosesPengajuanAdmin(id, keputusan){
+  const data = await postToScript({ action:'prosesPengajuan', idToken:currentUser.idToken, id, keputusan });
+  if (!data || !data.ok){ alert((data && (data.pesan || data.error)) || 'Pengajuan gagal diproses.'); return; }
+  await Promise.all([muatPengajuanAdmin(), muatLaporanAdmin()]);
 }
 
 function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, skorWajah = null){
