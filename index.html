@@ -538,11 +538,19 @@ function eyeAspectRatio(eye){
 function startBlinkWatcher(videoEl, onBlinkDetected){
   let mataPernahTertutup = false;
   let earMaksimum = 0;
+  let sedangMendeteksi = false;
   const samples = [];
   const interval = setInterval(async () => {
-    const det = await faceapi
-      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }))
-      .withFaceLandmarks();
+    if (sedangMendeteksi || videoEl.readyState < 2) return;
+    sedangMendeteksi = true;
+    let det = null;
+    try {
+      det = await faceapi
+        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.35 }))
+        .withFaceLandmarks();
+    } finally {
+      sedangMendeteksi = false;
+    }
     if (!det) return;
 
     const earKiri = eyeAspectRatio(det.landmarks.getLeftEye());
@@ -563,7 +571,7 @@ function startBlinkWatcher(videoEl, onBlinkDetected){
       clearInterval(interval);
       onBlinkDetected(samples.slice());
     }
-  }, 120);
+  }, 180);
   return interval;
 }
 
@@ -642,8 +650,52 @@ async function startAbsen(){
 
   let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = false, livenessEvidence = null;
 
+  function terapkanPosisi(pos){
+    koordinat = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      capturedAt: pos.timestamp || Date.now()
+    };
+    const t = kantorTerdekat(koordinat.lat, koordinat.lng);
+    jarak = t.jarak;
+    namaKantor = t.nama;
+    lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
+    lokasiSiap = Number.isFinite(koordinat.accuracy) && koordinat.accuracy <= 200;
+    statLokasi.textContent = lokasiSiap
+      ? `Lokasi · ${jarak} m dari ${namaKantor} (akurasi ${Math.round(koordinat.accuracy)} m)`
+      : `Lokasi · akurasi masih rendah (${Math.round(koordinat.accuracy || 0)} m), memperbarui…`;
+    statLokasi.className = 'status-item ' + (lokasiSiap ? (lokasiOk ? 'ok' : 'bad') : 'warn');
+    cekTombolSiap();
+  }
+
+  function mulaiPencarianLokasi(){
+    statLokasi.textContent = 'Lokasi · mencari posisi…';
+    statLokasi.className = 'status-item warn';
+    // Posisi terakhir yang masih baru biasanya tersedia dalam hitungan milidetik.
+    navigator.geolocation.getCurrentPosition(terapkanPosisi, () => {}, {
+      enableHighAccuracy:false, timeout:3000, maximumAge:120000
+    });
+    // GPS akurasi tinggi berjalan paralel untuk memperbaiki posisi cache.
+    navigator.geolocation.getCurrentPosition(terapkanPosisi, (err) => {
+      if (!lokasiSiap){
+        const pesan = err && err.code === 1 ? 'izin lokasi ditolak' : 'GPS belum mendapatkan posisi';
+        statLokasi.textContent = `Lokasi · ${pesan}. Ketuk untuk coba lagi`;
+        statLokasi.className = 'status-item bad';
+        statLokasi.style.cursor = 'pointer';
+        statLokasi.onclick = mulaiPencarianLokasi;
+      }
+    }, { enableHighAccuracy:true, timeout:10000, maximumAge:15000 });
+  }
+
+  mulaiPencarianLokasi();
   try {
-    attendanceChallenge = await requestAttendanceChallenge();
+    const hasilAwal = await Promise.all([
+      requestAttendanceChallenge(),
+      startCamera(video),
+      loadModelsOnce()
+    ]);
+    attendanceChallenge = hasilAwal[0];
   } catch (e) {
     statWajah.textContent = 'Wajah · sesi absensi gagal dimulai';
     statWajah.className = 'status-item bad';
@@ -657,8 +709,6 @@ async function startAbsen(){
     btnPulang.disabled = !siap;
   }
 
-  await startCamera(video);
-  await loadModelsOnce();
   statWajah.textContent = 'Wajah · siap dideteksi';
   ring.className = 'scan-ring wait';
 
@@ -677,26 +727,6 @@ async function startAbsen(){
     }
   }, 4000);
 
-  navigator.geolocation.getCurrentPosition((pos) => {
-    koordinat = {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      capturedAt: pos.timestamp || Date.now()
-    };
-    const t = kantorTerdekat(koordinat.lat, koordinat.lng);
-    jarak = t.jarak;
-    namaKantor = t.nama;
-    lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
-    lokasiSiap = true;
-    statLokasi.textContent = `Lokasi · ${jarak} m dari ${namaKantor}`;
-    statLokasi.className = 'status-item ' + (lokasiOk ? 'ok' : 'bad');
-    cekTombolSiap();
-  }, (err) => {
-    statLokasi.textContent = 'Lokasi · gagal diakses (izinkan GPS)';
-    statLokasi.className = 'status-item bad';
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-
   async function kirimAbsen(jenis){
     if (!attendanceChallenge || !attendanceChallenge.challengeId ||
         Date.now() >= Number(attendanceChallenge.expiresAt)) {
@@ -704,25 +734,27 @@ async function startAbsen(){
       return;
     }
     const challengeId = attendanceChallenge.challengeId;
-    attendanceChallenge = null;
 
     btnMasuk.disabled = true;
     btnPulang.disabled = true;
     statWajah.textContent = 'Wajah · mendeteksi…';
 
-    const descriptor = await getStableDescriptorFromVideo(video);
+    const descriptor = await getStableDescriptorFromVideo(video, 1, 2);
     const descriptorCapturedAt = Date.now();
 
     if (!descriptor){
       statWajah.textContent = 'Wajah · tidak terdeteksi';
       statWajah.className = 'status-item bad';
       ring.className = 'scan-ring bad';
+      cekTombolSiap();
+      return;
     } else {
       statWajah.textContent = 'Wajah · terdeteksi, menunggu verifikasi server…';
       statWajah.className = 'status-item warn';
       ring.className = 'scan-ring wait';
     }
 
+    attendanceChallenge = null;
     const res = await postToScript({
       action: 'absen',
       idToken: currentUser.idToken,
