@@ -1,4 +1,4 @@
-const CACHE_NAME = 'absensi-gdn-v5';
+const CACHE_NAME = 'absensi-gdn-v6';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,15 +22,37 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+
+  // Halaman utama selalu diambil dari server agar perbaikan terbaru aktif.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(new Request(request, { cache: 'no-store' }))
+        .then(response => {
+          const copy = response.clone();
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(cache =>
+              cache.put('./index.html', copy)
+            )
+          );
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then(response => {
         const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        event.waitUntil(
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
+        );
         return response;
       })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+      .catch(() => caches.match(request).then(cached => cached || caches.match('./index.html')))
   );
 });
