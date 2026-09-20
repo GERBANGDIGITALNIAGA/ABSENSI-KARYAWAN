@@ -692,7 +692,7 @@ async function startAbsen(){
     btnAdmin.onclick = openAdmin;
   }
 
-  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = false, livenessEvidence = null;
+  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = true, livenessEvidence = [];
 
   function terapkanPosisi(pos){
     koordinat = {
@@ -748,7 +748,7 @@ async function startAbsen(){
   }
 
   function cekTombolSiap(){
-    const siap = lokasiSiap && livenessOk;
+    const siap = lokasiSiap;
     btnMasuk.disabled = !siap;
     btnPulang.disabled = !siap;
   }
@@ -756,20 +756,10 @@ async function startAbsen(){
   statWajah.textContent = 'Wajah · siap dideteksi';
   ring.className = 'scan-ring wait';
 
-  // Mulai pantau kedipan mata sesaat setelah kamera & model siap.
-  const blinkInterval = startBlinkWatcher(video, (samples) => {
-    clearTimeout(hintTimer);
-    livenessEvidence = samples;
-    livenessOk = true;
-    statLiveness.textContent = 'Verifikasi hidup · terkonfirmasi ✓';
-    statLiveness.className = 'status-item ok';
-    cekTombolSiap();
-  });
-  const hintTimer = setTimeout(() => {
-    if (!livenessOk){
-      statLiveness.textContent = 'Verifikasi hidup · kedipkan mata sekali lagi dengan jelas';
-    }
-  }, 4000);
+  // Alur sederhana: tidak perlu kedipan. Wajah diverifikasi saat tombol ditekan.
+  statLiveness.textContent = 'Verifikasi hidup · tidak diperlukan';
+  statLiveness.className = 'status-item ok';
+  cekTombolSiap();
 
   async function kirimAbsen(jenis){
     if (!attendanceChallenge || !attendanceChallenge.challengeId ||
