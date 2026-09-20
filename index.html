@@ -810,7 +810,8 @@ async function startAbsen(){
 
     if (!res || !res.ok){
       const pesan = (res && (res.pesan || res.error)) || 'Gagal menghubungi server. Silakan coba lagi.';
-      tampilkanHasil(false, jarak, false, [pesan], jenis, namaKantor);
+      // Error validasi server bukan berarti wajah tidak cocok.
+      tampilkanHasil(false, jarak, null, [pesan], jenis, namaKantor);
       return;
     }
 
@@ -1010,7 +1011,7 @@ function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor,
 
   detail.innerHTML = `
     <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
-    <div class="status-item ${wajahOk ? 'ok' : 'bad'}">Kecocokan wajah · ${wajahOk ? 'cocok' : 'tidak cocok'}${skorWajah !== null ? ` (skor ${skorWajah})` : ''}</div>
+    <div class="status-item ${wajahOk === null ? 'warn' : (wajahOk ? 'ok' : 'bad')}" >Kecocokan wajah · ${wajahOk === null ? 'belum diperiksa' : (wajahOk ? 'cocok' : 'tidak cocok')}${skorWajah !== null ? ` (skor ${skorWajah})` : ''}</div>
   `;
 }
 
