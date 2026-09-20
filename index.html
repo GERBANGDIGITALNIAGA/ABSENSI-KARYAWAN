@@ -268,6 +268,7 @@
     <div class="user-row" id="userRowMenu"></div>
     <p class="desc">Pilih kegiatan yang ingin dilakukan.</p>
     <button class="btn-primary" id="btnMenuAbsen">Absen Masuk / Pulang</button>
+    <button class="btn-ghost" id="btnMenuRiwayat">Riwayat Absensi Saya</button>
     <button class="btn-ghost" id="btnMenuPengajuan">Ajukan Sakit, Izin, atau Cuti</button>
   </div>
 
@@ -313,6 +314,20 @@
     <h3 class="admin-title">Riwayat Pengajuan Saya</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th></tr></thead><tbody id="tbodyPengajuanSaya"></tbody></table></div>
     <button class="btn-ghost" id="btnKembaliAbsen">Kembali ke Menu</button>
+  </div>
+
+  <div class="card hidden" id="cardRiwayat">
+    <div class="step-label"><span class="dot"></span>Riwayat Absensi Saya</div>
+    <div class="admin-toolbar">
+      <label>Pilih bulan<input type="month" id="bulanRiwayat"></label>
+      <button class="btn-primary" id="btnMuatRiwayat">Tampilkan</button>
+    </div>
+    <p class="desc" id="statusRiwayat">Pilih bulan untuk melihat riwayat.</p>
+    <h3 class="admin-title">Absensi Masuk dan Pulang</h3>
+    <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Jenis</th><th>Kantor</th></tr></thead><tbody id="tbodyRiwayatAbsensi"></tbody></table></div>
+    <h3 class="admin-title">Pengajuan Sakit, Izin, dan Cuti</h3>
+    <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Alasan</th><th>Status</th></tr></thead><tbody id="tbodyRiwayatPengajuan"></tbody></table></div>
+    <button class="btn-ghost" id="btnKembaliDariRiwayat">Kembali ke Menu</button>
   </div>
 
   <div class="card hidden" id="cardAdmin">
@@ -460,7 +475,7 @@ async function handleCredentialResponse(response){
 
 function openEmployeeMenu(){
   hentikanSemuaKamera();
-  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardPengajuan','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  ['cardLogin','cardChecking','cardNotRegistered','cardDaftarWajah','cardAbsen','cardPengajuan','cardRiwayat','cardAdmin','cardHasil'].forEach(id => show(id, false));
   show('cardMenuKaryawan', true);
   document.querySelector('.shell').classList.remove('admin-wide');
   document.getElementById('userRowMenu').innerHTML = userRowHtml(currentUser);
@@ -470,6 +485,7 @@ function openEmployeeMenu(){
     else startAbsen();
   };
   document.getElementById('btnMenuPengajuan').onclick = openPengajuan;
+  document.getElementById('btnMenuRiwayat').onclick = openRiwayat;
 }
 
 async function fetchEmployeeList(){
@@ -837,7 +853,7 @@ function hentikanSemuaKamera(){
 
 async function openPengajuan(){
   hentikanSemuaKamera();
-  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardRiwayat','cardAdmin','cardHasil'].forEach(id => show(id, false));
   show('cardPengajuan', true);
   document.querySelector('.shell').classList.remove('admin-wide');
   const hariIni = tanggalLokal();
@@ -852,6 +868,40 @@ async function openPengajuan(){
     if (employeeRecord) openEmployeeMenu();
   };
   await muatPengajuanSaya();
+}
+
+async function openRiwayat(){
+  hentikanSemuaKamera();
+  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardPengajuan','cardAdmin','cardHasil'].forEach(id => show(id, false));
+  show('cardRiwayat', true);
+  document.querySelector('.shell').classList.remove('admin-wide');
+  const input = document.getElementById('bulanRiwayat');
+  if (!input.value) input.value = defaultBulanLaporan();
+  document.getElementById('btnMuatRiwayat').onclick = muatRiwayatSaya;
+  document.getElementById('btnKembaliDariRiwayat').onclick = openEmployeeMenu;
+  await muatRiwayatSaya();
+}
+
+async function muatRiwayatSaya(){
+  const bulan = document.getElementById('bulanRiwayat').value;
+  const status = document.getElementById('statusRiwayat');
+  status.textContent = 'Memuat riwayat…';
+  const data = await postToScript({ action: 'riwayatSaya', idToken: currentUser.idToken, bulan });
+  const tbodyAbsensi = document.getElementById('tbodyRiwayatAbsensi');
+  const tbodyPengajuan = document.getElementById('tbodyRiwayatPengajuan');
+  if (!data || !data.ok){
+    status.textContent = (data && (data.pesan || data.error)) || 'Riwayat gagal dimuat.';
+    tbodyAbsensi.innerHTML = '<tr><td colspan="4">Riwayat tidak tersedia.</td></tr>';
+    tbodyPengajuan.innerHTML = '<tr><td colspan="4">Riwayat tidak tersedia.</td></tr>';
+    return;
+  }
+  status.textContent = `Bulan ${escapeHtml(data.bulan)} · ${data.absensi.length} catatan absensi · ${data.pengajuan.length} pengajuan`;
+  tbodyAbsensi.innerHTML = data.absensi.length ? data.absensi.map(r =>
+    `<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam)}</td><td>${escapeHtml(r.jenis)}</td><td>${escapeHtml(r.kantor)}</td></tr>`
+  ).join('') : '<tr><td colspan="4">Belum ada absensi diterima.</td></tr>';
+  tbodyPengajuan.innerHTML = data.pengajuan.length ? data.pengajuan.map(p =>
+    `<tr><td>${escapeHtml(p.tanggalMulai)}${p.tanggalSelesai !== p.tanggalMulai ? ` – ${escapeHtml(p.tanggalSelesai)}` : ''}</td><td>${escapeHtml(p.jenis)}</td><td>${escapeHtml(p.alasan)}</td><td>${badgeStatus(p.status)}</td></tr>`
+  ).join('') : '<tr><td colspan="4">Belum ada pengajuan.</td></tr>';
 }
 
 async function kirimPengajuan(){
@@ -904,7 +954,7 @@ function escapeHtml(value){
 
 async function openAdmin(){
   hentikanSemuaKamera();
-  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardPengajuan','cardHasil'].forEach(id => show(id, false));
+  ['cardLogin','cardChecking','cardNotRegistered','cardMenuKaryawan','cardDaftarWajah','cardAbsen','cardPengajuan','cardRiwayat','cardHasil'].forEach(id => show(id, false));
   show('cardAdmin', true);
   document.querySelector('.shell').classList.add('admin-wide');
   const input = document.getElementById('bulanLaporan');
