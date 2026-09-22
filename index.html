@@ -211,7 +211,7 @@
   th{position:sticky;top:0;z-index:1;background:#edf5f5;}
   tbody tr:hover{background:#f8fbfb;}
   .login-note{display:flex;align-items:center;gap:8px;justify-content:center;color:var(--muted);font-size:12px;margin-top:14px;}
-  .login-note span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#e8f5f2;color:var(--teal-dark);font-weight:800;}
+  .login-note span{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;background:#e8f5f2;color:var(--teal-dark);font-weight:800;}
   @media(max-width:600px){
     body{padding:0 12px 36px}.shell{padding-top:22px}.brand{justify-content:flex-start;padding:0 8px}.card{padding:20px;border-radius:18px}.cam-wrap{aspect-ratio:1/1.08}
   }
@@ -221,6 +221,11 @@
   .form-field.full{grid-column:1/-1;}
   .form-field input,.form-field select,.form-field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;color:var(--ink);background:#fff;}
   .form-field textarea{min-height:90px;resize:vertical;}
+  .foto-bukti-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .foto-bukti-actions label{cursor:pointer;position:relative;flex:1;min-width:135px;text-align:center;padding:12px;border-radius:12px;font-size:13px;font-weight:700;}
+  .foto-bukti-actions input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+  .foto-bukti-list{font-size:13px;line-height:1.7;margin:8px 0;color:var(--muted);}
+  .foto-bukti-list a{color:var(--teal-dark);margin-right:12px;}
   .btn-small{width:auto;min-height:34px;padding:7px 10px;font-size:12px;margin:0 5px 0 0;}
   .status-badge{display:inline-block;padding:4px 8px;border-radius:99px;font-size:11px;font-weight:700;background:var(--warn-bg);color:var(--warn);}
   .status-badge.approved{background:var(--ok-bg);color:var(--ok)}.status-badge.rejected{background:var(--bad-bg);color:var(--bad)}
@@ -246,7 +251,7 @@
     <p class="desc">Masuk memakai akun Google pribadi kamu. Hanya email yang sudah didaftarkan admin yang bisa absen.</p>
     <div id="gsi-btn-holder"></div>
     <button class="install-app hidden" id="btnInstallApp">Pasang aplikasi di Android</button>
-    <div class="login-note"><span>✓</span> Foto wajah dicatat · GPS kantor menentukan kehadiran</div>
+    <div class="login-note"><span>✓</span> semangat kerjanya teman teman jangan lupa absen masuk dan pulang :)</div>
   </div>
 
   <!-- STEP 2: CEK KARYAWAN -->
@@ -276,7 +281,7 @@
   <div class="card hidden" id="cardKunjungan">
     <div class="step-label"><span class="dot"></span>Absensi Tim Lapangan</div>
     <div class="user-row" id="userRowKunjungan"></div>
-    <p class="desc">Mulai kunjungan saat tiba di merchant. Selesaikan setelah kunjungan berakhir. Jam dan GPS dicatat otomatis.</p>
+    <p class="desc">Mulai kunjungan saat tiba di merchant, ambil foto bukti di lokasi, lalu selesaikan setelah kunjungan berakhir. Jam dan GPS dicatat otomatis.</p>
     <p class="desc" id="statusKunjungan">Memuat kunjungan…</p>
     <div id="formMulaiKunjungan">
       <label class="form-field">Nama merchant<input id="namaMerchant" maxlength="120" autocomplete="organization" placeholder="Nama merchant yang dikunjungi"></label>
@@ -284,11 +289,17 @@
     </div>
     <div id="formSelesaiKunjungan" class="hidden">
       <div class="status-item ok" id="kunjunganAktifInfo"></div>
+      <p class="desc" style="margin:14px 0 6px">Foto bukti di warung: minimal 1, maksimal 8. Foto tersimpan di Google Drive dan bisa dilihat admin.</p>
+      <div class="foto-bukti-actions">
+        <label class="btn-ghost">Ambil Foto<input type="file" id="fotoKunjunganKamera" accept="image/*" capture="environment"></label>
+        <label class="btn-ghost">Pilih Beberapa Foto<input type="file" id="fotoKunjunganGaleri" accept="image/*" multiple></label>
+      </div>
+      <div class="foto-bukti-list" id="fotoBuktiAktif">Belum ada foto bukti.</div>
       <label class="form-field full" style="margin-top:14px">Hasil kunjungan<textarea id="hasilKunjungan" maxlength="1000" placeholder="Contoh: presentasi produk, pesanan, tindak lanjut"></textarea></label>
-      <button class="btn-primary" id="btnSelesaiKunjungan" style="margin-top:14px">Selesaikan Kunjungan · Ambil GPS</button>
+      <button class="btn-primary" id="btnSelesaiKunjungan" style="margin-top:14px" disabled>Selesaikan Kunjungan · Ambil GPS</button>
     </div>
     <h3 class="admin-title" style="margin-top:24px">Riwayat Kunjungan Bulan Ini</h3>
-    <div class="table-wrap"><table><thead><tr><th>Merchant</th><th>Mulai</th><th>Selesai</th><th>Hasil</th><th>Lokasi</th></tr></thead><tbody id="tbodyKunjunganSaya"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Merchant</th><th>Mulai</th><th>Selesai</th><th>Hasil</th><th>Lokasi</th><th>Foto Bukti</th></tr></thead><tbody id="tbodyKunjunganSaya"></tbody></table></div>
     <button class="btn-ghost" id="btnKembaliDariKunjungan">Kembali ke Menu</button>
   </div>
 
@@ -365,7 +376,7 @@
     <h3 class="admin-title">Riwayat yang Absen</h3>
     <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jam</th><th>Nama</th><th>Jenis</th><th>Lokasi</th></tr></thead><tbody id="tbodyRecords"></tbody></table></div>
     <h3 class="admin-title">Kunjungan Tim Lapangan</h3>
-    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Merchant</th><th>Mulai</th><th>Selesai</th><th>Hasil</th><th>GPS Mulai</th><th>GPS Selesai</th></tr></thead><tbody id="tbodyKunjunganAdmin"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Merchant</th><th>Mulai</th><th>Selesai</th><th>Hasil</th><th>GPS Mulai</th><th>GPS Selesai</th><th>Foto Bukti</th></tr></thead><tbody id="tbodyKunjunganAdmin"></tbody></table></div>
     <button class="btn-primary" id="btnKeAbsensi">Buka Halaman Absensi</button>
     <button class="btn-ghost" onclick="location.reload()">Keluar / Ganti Akun</button>
   </div>
@@ -513,6 +524,88 @@ function openEmployeeMenu(){
   document.getElementById('btnMenuKunjungan').onclick = openKunjungan;
 }
 
+function tautanFotoKunjungan(foto){
+  if (!Array.isArray(foto) || !foto.length) return '—';
+  return foto.map((url, i) => /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view$/.test(url)
+    ? `<a href="${url}" target="_blank" rel="noopener noreferrer">Foto ${i + 1}</a>` : '').join(' ');
+}
+
+function tampilkanFotoBuktiAktif(){
+  const foto = kunjunganAktif && kunjunganAktif.fotoBukti || [];
+  document.getElementById('fotoBuktiAktif').innerHTML = foto.length
+    ? `${foto.length}/8 foto tersimpan · ${tautanFotoKunjungan(foto)}` : 'Belum ada foto bukti.';
+  document.getElementById('btnSelesaiKunjungan').disabled = foto.length === 0;
+}
+
+async function jpegFotoKunjungan(file){
+  if (!file || !file.type.startsWith('image/')) throw new Error('Pilih berkas foto gambar.');
+  const src = URL.createObjectURL(file);
+  const img = new Image();
+  try {
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Foto tidak dapat dibaca.'));
+      img.src = src;
+    });
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    let base64 = canvas.toDataURL('image/jpeg', 0.72).split(',')[1];
+    if (base64.length > 700000){
+      const ratio = Math.min(1, 850 / Math.max(canvas.width, canvas.height));
+      const small = document.createElement('canvas');
+      small.width = Math.max(1, Math.round(canvas.width * ratio));
+      small.height = Math.max(1, Math.round(canvas.height * ratio));
+      small.getContext('2d').drawImage(canvas, 0, 0, small.width, small.height);
+      base64 = small.toDataURL('image/jpeg', 0.6).split(',')[1];
+    }
+    if (base64.length > 700000) throw new Error('Foto terlalu besar. Coba foto lain.');
+    return base64;
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
+async function unggahFotoKunjunganDariInput(input){
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length || !kunjunganAktif) return;
+  const status = document.getElementById('statusKunjungan');
+  const tombolSelesai = document.getElementById('btnSelesaiKunjungan');
+  const inputs = ['fotoKunjunganKamera','fotoKunjunganGaleri'].map(id => document.getElementById(id));
+  inputs.forEach(el => el.disabled = true);
+  tombolSelesai.disabled = true;
+  try {
+    const tersimpan = kunjunganAktif.fotoBukti || [];
+    if (files.length + tersimpan.length > 8) throw new Error('Maksimal 8 foto untuk satu kunjungan.');
+    for (let i = 0; i < files.length; i++){
+      status.textContent = `Mengunggah foto ${i + 1} dari ${files.length}…`;
+      const foto = await jpegFotoKunjungan(files[i]);
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(foto));
+      const uploadId = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+      const gps = await ambilGpsKunjungan();
+      const data = await postToScript({
+        action:'unggahFotoKunjungan', idToken:currentUser.idToken,
+        id:kunjunganAktif.id, uploadId, foto, ...gps
+      });
+      if (!data || !data.ok) throw new Error((data && (data.pesan || data.error)) || 'Unggahan belum dapat dipastikan. Muat ulang riwayat sebelum mencoba lagi.');
+      kunjunganAktif = data.kunjungan;
+      tampilkanFotoBuktiAktif();
+    }
+    await muatKunjunganSaya();
+    status.textContent = `${(kunjunganAktif && kunjunganAktif.fotoBukti || []).length} foto tersimpan. Lanjutkan foto lain atau isi hasil kunjungan.`;
+  } catch (err) {
+    // Muat ulang jumlah foto bila server sudah menyimpan foto tetapi respons terputus.
+    await muatKunjunganSaya();
+    status.textContent = err.message || 'Foto gagal diunggah.';
+  } finally {
+    inputs.forEach(el => el.disabled = false);
+    tampilkanFotoBuktiAktif();
+  }
+}
+
 function tautanLokasiKunjungan(lat, lng){
   if (typeof lat !== 'number' || typeof lng !== 'number' ||
       !Number.isFinite(lat) || !Number.isFinite(lng)) return '—';
@@ -544,6 +637,8 @@ async function openKunjungan(){
   document.getElementById('btnKembaliDariKunjungan').onclick = openEmployeeMenu;
   document.getElementById('btnMulaiKunjungan').onclick = () => kirimKunjungan('mulaiKunjungan');
   document.getElementById('btnSelesaiKunjungan').onclick = () => kirimKunjungan('selesaiKunjungan');
+  document.getElementById('fotoKunjunganKamera').onchange = event => unggahFotoKunjunganDariInput(event.target);
+  document.getElementById('fotoKunjunganGaleri').onchange = event => unggahFotoKunjunganDariInput(event.target);
   await muatKunjunganSaya();
 }
 
@@ -561,16 +656,17 @@ async function muatKunjunganSaya(){
   kunjunganAktif = data.aktif;
   show('formMulaiKunjungan', !kunjunganAktif);
   show('formSelesaiKunjungan', !!kunjunganAktif);
+  tampilkanFotoBuktiAktif();
   if (kunjunganAktif){
     document.getElementById('kunjunganAktifInfo').textContent =
       `${kunjunganAktif.merchant} · mulai ${kunjunganAktif.mulai} WIB`;
-    status.textContent = 'Kunjungan sedang berlangsung. Isi hasil saat selesai.';
+    status.textContent = 'Kunjungan sedang berlangsung. Tambahkan foto bukti dan isi hasil saat selesai.';
   } else {
     status.textContent = 'Belum ada kunjungan aktif. GPS akan diambil saat tombol ditekan.';
   }
   document.getElementById('tbodyKunjunganSaya').innerHTML = data.kunjungan.length
-    ? data.kunjungan.map(k => `<tr><td>${escapeHtml(k.merchant)}</td><td>${escapeHtml(k.mulai)} WIB</td><td>${escapeHtml(k.selesai || 'Berlangsung')}</td><td>${escapeHtml(k.hasil || '—')}</td><td>${tautanLokasiKunjungan(k.latMulai,k.lngMulai)} / ${tautanLokasiKunjungan(k.latSelesai,k.lngSelesai)}</td></tr>`).join('')
-    : '<tr><td colspan="5">Belum ada kunjungan bulan ini.</td></tr>';
+    ? data.kunjungan.map(k => `<tr><td>${escapeHtml(k.merchant)}</td><td>${escapeHtml(k.mulai)} WIB</td><td>${escapeHtml(k.selesai || 'Berlangsung')}</td><td>${escapeHtml(k.hasil || '—')}</td><td>${tautanLokasiKunjungan(k.latMulai,k.lngMulai)} / ${tautanLokasiKunjungan(k.latSelesai,k.lngSelesai)}</td><td>${tautanFotoKunjungan(k.fotoBukti)}</td></tr>`).join('')
+    : '<tr><td colspan="6">Belum ada kunjungan bulan ini.</td></tr>';
   return true;
 }
 
@@ -581,6 +677,9 @@ async function kirimKunjungan(action){
   const hasil = document.getElementById('hasilKunjungan').value.trim();
   if (action === 'mulaiKunjungan' && merchant.length < 2){ status.textContent = 'Isi nama merchant terlebih dahulu.'; return; }
   if (action === 'selesaiKunjungan' && hasil.length < 3){ status.textContent = 'Isi hasil kunjungan terlebih dahulu.'; return; }
+  if (action === 'selesaiKunjungan' && !(kunjunganAktif && kunjunganAktif.fotoBukti && kunjunganAktif.fotoBukti.length)){
+    status.textContent = 'Tambahkan minimal 1 foto bukti sebelum menyelesaikan kunjungan.'; return;
+  }
   tombol.disabled = true;
   status.textContent = 'Mengambil GPS terbaru…';
   try {
@@ -596,6 +695,7 @@ async function kirimKunjungan(action){
     kunjunganAktif = action === 'mulaiKunjungan' ? data.kunjungan : null;
     show('formMulaiKunjungan', !kunjunganAktif);
     show('formSelesaiKunjungan', !!kunjunganAktif);
+    tampilkanFotoBuktiAktif();
     if (kunjunganAktif) document.getElementById('kunjunganAktifInfo').textContent =
       `${kunjunganAktif.merchant} · mulai ${kunjunganAktif.mulai} WIB`;
     const termuat = await muatKunjunganSaya();
@@ -605,7 +705,7 @@ async function kirimKunjungan(action){
   } catch (err) {
     status.textContent = err && err.code === 1 ? 'Izin lokasi ditolak. Aktifkan GPS lalu coba lagi.' : (err.message || 'GPS gagal diperoleh. Coba lagi.');
   } finally {
-    tombol.disabled = false;
+    tombol.disabled = action === 'selesaiKunjungan' && !(kunjunganAktif && kunjunganAktif.fotoBukti && kunjunganAktif.fotoBukti.length);
   }
 }
 
@@ -1101,8 +1201,8 @@ async function muatLaporanAdmin(){
   document.getElementById('tbodyRecords').innerHTML = data.records.length ? data.records.map(r => `<tr><td>${escapeHtml(r.tanggal)}</td><td>${escapeHtml(r.jam)}</td><td>${escapeHtml(r.nama)}</td><td>${escapeHtml(r.jenis)}</td><td>${escapeHtml(r.kantor)}</td></tr>`).join('') : '<tr><td colspan="5">Belum ada absensi diterima.</td></tr>';
   const kunjungan = data.kunjungan || [];
   document.getElementById('tbodyKunjunganAdmin').innerHTML = kunjungan.length
-    ? kunjungan.map(k => `<tr><td>${escapeHtml(k.nama)}<br><small>${escapeHtml(k.email)}</small></td><td>${escapeHtml(k.merchant)}</td><td>${escapeHtml(k.mulai)} WIB</td><td>${escapeHtml(k.selesai || 'Berlangsung')}</td><td>${escapeHtml(k.hasil || '—')}</td><td>${tautanLokasiKunjungan(k.latMulai,k.lngMulai)}</td><td>${tautanLokasiKunjungan(k.latSelesai,k.lngSelesai)}</td></tr>`).join('')
-    : '<tr><td colspan="7">Belum ada kunjungan bulan ini.</td></tr>';
+    ? kunjungan.map(k => `<tr><td>${escapeHtml(k.nama)}<br><small>${escapeHtml(k.email)}</small></td><td>${escapeHtml(k.merchant)}</td><td>${escapeHtml(k.mulai)} WIB</td><td>${escapeHtml(k.selesai || 'Berlangsung')}</td><td>${escapeHtml(k.hasil || '—')}</td><td>${tautanLokasiKunjungan(k.latMulai,k.lngMulai)}</td><td>${tautanLokasiKunjungan(k.latSelesai,k.lngSelesai)}</td><td>${tautanFotoKunjungan(k.fotoBukti)}</td></tr>`).join('')
+    : '<tr><td colspan="8">Belum ada kunjungan bulan ini.</td></tr>';
 }
 
 async function muatPengajuanAdmin(){
