@@ -17,11 +17,10 @@
     window.location.replace(window.location.pathname + window.location.hash);
   }
 </script>
-<title>Absensi — Verifikasi Wajah &amp; Lokasi</title>
+<title>Absensi — GPS Kantor &amp; Foto Wajah</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
   :root{
     --navy:#12213F;
@@ -148,6 +147,7 @@
   }
   .result-icon.ok{background:var(--ok-bg);color:var(--ok);}
   .result-icon.bad{background:var(--bad-bg);color:var(--bad);}
+  .result-icon.warn{background:var(--warn-bg);color:var(--warn);}
   .result-title{text-align:center;font-size:19px;margin-bottom:4px;}
   .result-sub{text-align:center;color:var(--muted);font-size:13.5px;margin-bottom:18px;}
 
@@ -246,7 +246,7 @@
     <p class="desc">Masuk memakai akun Google pribadi kamu. Hanya email yang sudah didaftarkan admin yang bisa absen.</p>
     <div id="gsi-btn-holder"></div>
     <button class="install-app hidden" id="btnInstallApp">Pasang aplikasi di Android</button>
-    <div class="login-note"><span>✓</span> Aman · Wajah dan lokasi terverifikasi</div>
+    <div class="login-note"><span>✓</span> Foto wajah dicatat · GPS kantor menentukan kehadiran</div>
   </div>
 
   <!-- STEP 2: CEK KARYAWAN -->
@@ -309,10 +309,10 @@
     <button class="btn-ghost hidden" id="btnAdmin" style="margin:0 0 16px">Buka Laporan Admin</button>
     <button class="btn-ghost" id="btnBukaPengajuan" style="margin:0 0 16px">Ajukan Sakit, Izin, atau Cuti</button>
     <div class="cam-wrap"><video id="videoAbsen" autoplay muted playsinline></video><canvas id="canvasAbsen" class="hidden"></canvas><div class="scan-ring wait" id="ringAbsen"></div></div>
+    <p class="desc">Hadapkan wajah ke kamera. Foto diambil saat tombol absen ditekan; kehadiran ditentukan oleh GPS kantor.</p>
     <div class="status-list">
       <div class="status-item warn" id="statLokasi">Lokasi &middot; menunggu…</div>
-      <div class="status-item warn" id="statLiveness">Verifikasi hidup &middot; kedipkan mata…</div>
-      <div class="status-item warn" id="statWajah">Wajah &middot; menunggu…</div>
+      <div class="status-item warn" id="statFoto">Kamera &middot; menunggu…</div>
     </div>
     <div style="display:flex;gap:10px;">
       <button class="btn-primary" id="btnMasuk" disabled>Absen Masuk</button>
@@ -412,7 +412,7 @@ const CONFIG = {
    ========================================================= */
 let currentUser = null;      // {email, nama, foto, idToken}
 let employeeRecord = null;   // baris dari sheet Karyawan
-let modelsPromise = null;    // promise tunggal supaya model tidak diunduh berkali-kali
+let modelsPromise = null;    // dipakai hanya oleh alur registrasi wajah lama
 let attendanceChallenge = null; // {challengeId, expiresAt}, hanya disimpan sementara di memory
 let currentUserIsAdmin = false;
 let kunjunganAktif = null;
@@ -436,7 +436,6 @@ function checkConfig(){
    ========================================================= */
 window.onload = () => {
   checkConfig();
-  loadModelsOnce(); // mulai unduh model dari sekarang, paralel dengan proses login (tidak perlu ditunggu)
   google.accounts.id.initialize({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
     callback: handleCredentialResponse
@@ -506,8 +505,7 @@ function openEmployeeMenu(){
     ? 'Absen Masuk / Pulang di Kantor' : 'Absen Masuk / Pulang';
   document.getElementById('btnMenuAbsen').onclick = () => {
     show('cardMenuKaryawan', false);
-    if (!employeeRecord.hasDeskriptor) startRegistrasi();
-    else startAbsen();
+    startAbsen();
   };
   document.getElementById('btnMenuPengajuan').onclick = openPengajuan;
   document.getElementById('btnMenuRiwayat').onclick = openRiwayat;
@@ -807,17 +805,17 @@ async function startAbsen(){
   const btnMasuk = document.getElementById('btnMasuk');
   const btnPulang = document.getElementById('btnPulang');
   const statLokasi = document.getElementById('statLokasi');
-  const statLiveness = document.getElementById('statLiveness');
-  const statWajah = document.getElementById('statWajah');
+  const statFoto = document.getElementById('statFoto');
   if (currentUserIsAdmin) {
     const btnAdmin = document.getElementById('btnAdmin');
     show('btnAdmin', true);
     btnAdmin.onclick = openAdmin;
   }
 
-  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, livenessOk = true, livenessEvidence = [];
+  let lokasiOk = false, koordinat = null, jarak = null, namaKantor = null, lokasiSiap = false, sesiSiap = false;
 
   function terapkanPosisi(pos){
+    if (koordinat && pos.timestamp < koordinat.capturedAt) return;
     koordinat = {
       lat: pos.coords.latitude,
       lng: pos.coords.longitude,
@@ -828,7 +826,7 @@ async function startAbsen(){
     jarak = t.jarak;
     namaKantor = t.nama;
     lokasiOk = jarak <= CONFIG.MAX_DISTANCE_M;
-    lokasiSiap = Number.isFinite(koordinat.accuracy) && koordinat.accuracy <= 200;
+    lokasiSiap = Number.isFinite(koordinat.accuracy) && koordinat.accuracy > 0 && koordinat.accuracy <= 200;
     statLokasi.textContent = lokasiSiap
       ? `Lokasi · ${jarak} m dari ${namaKantor} (akurasi ${Math.round(koordinat.accuracy)} m)`
       : `Lokasi · akurasi masih rendah (${Math.round(koordinat.accuracy || 0)} m), memperbarui…`;
@@ -859,95 +857,90 @@ async function startAbsen(){
   try {
     const hasilAwal = await Promise.all([
       requestAttendanceChallenge(),
-      startCamera(video),
-      loadModelsOnce()
+      startCamera(video)
     ]);
     attendanceChallenge = hasilAwal[0];
+    sesiSiap = true;
   } catch (e) {
-    statWajah.textContent = 'Wajah · sesi absensi gagal dimulai';
-    statWajah.className = 'status-item bad';
+    statFoto.textContent = 'Kamera atau sesi absensi gagal dimulai';
+    statFoto.className = 'status-item bad';
     alert('Gagal memulai sesi absensi. Silakan coba lagi.');
     return;
   }
 
   function cekTombolSiap(){
-    const siap = lokasiSiap;
+    const siap = lokasiSiap && sesiSiap;
     btnMasuk.disabled = !siap;
     btnPulang.disabled = !siap;
   }
 
-  statWajah.textContent = 'Wajah · siap dideteksi';
+  statFoto.textContent = 'Kamera · foto siap diambil';
+  statFoto.className = 'status-item ok';
   ring.className = 'scan-ring wait';
-
-  // Alur sederhana: tidak perlu kedipan. Wajah diverifikasi saat tombol ditekan.
-  statLiveness.textContent = 'Verifikasi hidup · tidak diperlukan';
-  statLiveness.className = 'status-item ok';
   cekTombolSiap();
 
   async function kirimAbsen(jenis){
-    if (!attendanceChallenge || !attendanceChallenge.challengeId ||
-        Date.now() >= Number(attendanceChallenge.expiresAt)) {
-      alert('Sesi absensi tidak tersedia atau sudah kedaluwarsa. Silakan mulai ulang.');
-      return;
-    }
-    const challengeId = attendanceChallenge.challengeId;
-
     btnMasuk.disabled = true;
     btnPulang.disabled = true;
-    statWajah.textContent = 'Wajah · mendeteksi…';
+    statFoto.textContent = 'Kamera · mengambil foto…';
+    statFoto.className = 'status-item warn';
+    try {
+      if (!video.videoWidth || !video.videoHeight){
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Kamera belum siap. Coba lagi.')), 3000);
+          video.addEventListener('loadedmetadata', () => { clearTimeout(timeout); resolve(); }, { once:true });
+        });
+      }
+      const foto = ambilFotoBase64(video, document.getElementById('canvasAbsen'));
+      if (!foto) throw new Error('Foto wajah gagal diambil. Coba lagi.');
+      statFoto.textContent = 'Foto diambil · memeriksa GPS…';
+      ring.className = 'scan-ring ok';
 
-    const descriptor = await getStableDescriptorFromVideo(video, 1, 2);
-    const descriptorCapturedAt = Date.now();
+      const perluGpsBaru = !koordinat || Date.now() - koordinat.capturedAt > 15000;
+      const gpsPromise = perluGpsBaru
+        ? new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy:true, timeout:10000, maximumAge:0
+          }))
+        : Promise.resolve(null);
+      const challengePromise = !attendanceChallenge ||
+        Date.now() >= Number(attendanceChallenge.expiresAt) - 15000
+        ? requestAttendanceChallenge() : Promise.resolve(attendanceChallenge);
+      const [posisiBaru, challenge] = await Promise.all([gpsPromise, challengePromise]);
+      if (posisiBaru) terapkanPosisi(posisiBaru);
+      if (!lokasiSiap) throw new Error('Akurasi GPS belum cukup baik. Coba lagi di area terbuka.');
 
-    if (!descriptor){
-      statWajah.textContent = 'Wajah · tidak terdeteksi';
-      statWajah.className = 'status-item bad';
+      attendanceChallenge = null;
+      statFoto.textContent = 'Foto diambil · menyimpan absensi…';
+      const res = await postToScript({
+        action: 'absen', idToken: currentUser.idToken,
+        challengeId: challenge.challengeId,
+        jenis: jenis,
+        lat: koordinat.lat, lng: koordinat.lng,
+        gpsAccuracy: koordinat.accuracy,
+        gpsCapturedAt: koordinat.capturedAt,
+        foto: foto
+      });
+      if (!res){
+        tampilkanHasil(null, jarak, lokasiOk, null,
+          ['Respons server tidak diterima. Periksa Riwayat Absensi sebelum mencoba lagi.'], jenis, namaKantor);
+        return;
+      }
+      if (!res.ok){
+        const pesan = (res.pesan || res.error) || 'Absen gagal dikirim.';
+        tampilkanHasil(false, jarak, lokasiOk, false, [pesan], jenis, namaKantor);
+        return;
+      }
+      const keteranganServer = res.keterangan ? res.keterangan.split('; ').filter(Boolean) : [];
+      tampilkanHasil(res.diterima, res.jarak, res.lokasiOk, res.fotoTersimpan,
+        keteranganServer, jenis, res.namaKantor);
+    } catch (err) {
+      statFoto.textContent = err && err.code === 1
+        ? 'Izin lokasi ditolak. Aktifkan GPS lalu coba lagi.'
+        : (err.message || 'Absen belum terkirim. Coba lagi.');
+      statFoto.className = 'status-item bad';
       ring.className = 'scan-ring bad';
       cekTombolSiap();
-      return;
-    } else {
-      statWajah.textContent = 'Wajah · terdeteksi, menunggu verifikasi server…';
-      statWajah.className = 'status-item warn';
-      ring.className = 'scan-ring wait';
     }
-
-    attendanceChallenge = null;
-    const res = await postToScript({
-      action: 'absen',
-      idToken: currentUser.idToken,
-      challengeId: challengeId,
-      email: currentUser.email,
-      nama: employeeRecord.nama || currentUser.nama,
-      jenis: jenis,
-      kantor: namaKantor,
-      lat: koordinat ? koordinat.lat : '',
-      lng: koordinat ? koordinat.lng : '',
-      gpsAccuracy: koordinat ? koordinat.accuracy : '',
-      gpsCapturedAt: koordinat ? koordinat.capturedAt : '',
-      jarak: jarak,
-      deskriptorLive: descriptor ? Array.from(descriptor) : [],
-      descriptorCapturedAt: descriptorCapturedAt,
-      livenessSamples: livenessEvidence || [],
-      foto: ambilFotoBase64(video, document.getElementById('canvasAbsen'))
-    });
-
-    if (!res || !res.ok){
-      const pesan = (res && (res.pesan || res.error)) || 'Gagal menghubungi server. Silakan coba lagi.';
-      // Error validasi server bukan berarti wajah tidak cocok.
-      tampilkanHasil(false, jarak, null, [pesan], jenis, namaKantor);
-      return;
-    }
-
-    const keteranganServer = res.keterangan ? res.keterangan.split('; ').filter(Boolean) : [];
-    tampilkanHasil(
-      res.diterima,
-      res.jarak,
-      res.wajahOk,
-      keteranganServer,
-      jenis,
-      res.namaKantor,
-      res.skorWajah
-    );
   }
 
   btnMasuk.onclick = () => kirimAbsen('Masuk');
@@ -1128,7 +1121,7 @@ async function prosesPengajuanAdmin(id, keputusan){
   await Promise.all([muatPengajuanAdmin(), muatLaporanAdmin()]);
 }
 
-function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor, skorWajah = null){
+function tampilkanHasil(diterima, jarak, lokasiOk, fotoTersimpan, keterangan, jenis, namaKantor){
   show('cardAbsen', false);
   show('cardHasil', true);
   const icon = document.getElementById('hasilIcon');
@@ -1136,16 +1129,15 @@ function tampilkanHasil(diterima, jarak, wajahOk, keterangan, jenis, namaKantor,
   const sub = document.getElementById('hasilSub');
   const detail = document.getElementById('hasilDetail');
 
-  icon.className = 'result-icon ' + (diterima ? 'ok' : 'bad');
-  icon.textContent = diterima ? '✓' : '✕';
-  title.textContent = diterima ? `Absen ${jenis} berhasil` : `Absen ${jenis} ditolak`;
-  sub.textContent = diterima
-    ? 'Kehadiran kamu sudah tercatat di sistem.'
-    : keterangan.join(', ');
+  icon.className = 'result-icon ' + (diterima === true ? 'ok' : diterima === false ? 'bad' : 'warn');
+  icon.textContent = diterima === true ? '✓' : diterima === false ? '✕' : '?';
+  title.textContent = diterima === true ? `Absen ${jenis} berhasil`
+    : diterima === false ? `Absen ${jenis} ditolak` : `Status Absen ${jenis} belum diketahui`;
+  sub.textContent = diterima === true ? 'Kehadiran kamu sudah tercatat di sistem.' : keterangan.join(', ');
 
   detail.innerHTML = `
-    <div class="status-item ${jarak !== null && jarak <= CONFIG.MAX_DISTANCE_M ? 'ok' : 'bad'}">Jarak ke ${namaKantor} · ${jarak ?? '-'} m</div>
-    <div class="status-item ${wajahOk === null ? 'warn' : (wajahOk ? 'ok' : 'bad')}" >Kecocokan wajah · ${wajahOk === null ? 'belum diperiksa' : (wajahOk ? 'cocok' : 'tidak cocok')}${skorWajah !== null ? ` (skor ${skorWajah})` : ''}</div>
+    <div class="status-item ${lokasiOk ? 'ok' : 'bad'}">GPS ke ${escapeHtml(namaKantor || 'kantor')} · ${jarak ?? '-'} m</div>
+    <div class="status-item ${fotoTersimpan === true ? 'ok' : 'warn'}">Foto wajah · ${fotoTersimpan === true ? 'tersimpan' : fotoTersimpan === false ? 'belum tersimpan' : 'status belum diketahui'}</div>
   `;
 }
 

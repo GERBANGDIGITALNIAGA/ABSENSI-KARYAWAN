@@ -1,4 +1,4 @@
-const CACHE_NAME = 'absensi-gdn-v7';
+const CACHE_NAME = 'absensi-gdn-v8';
 const APP_SHELL = [
   './',
   './index.html',

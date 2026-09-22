@@ -1,7 +1,7 @@
 {
   "name": "Absensi Karyawan Gerbang Digital Niaga",
   "short_name": "Absensi GDN",
-  "description": "Aplikasi absensi karyawan di kantor dan kunjungan tim lapangan.",
+  "description": "Absensi kantor berbasis GPS dengan foto wajah dan kunjungan tim lapangan.",
   "lang": "id",
   "start_url": "./",
   "scope": "./",
